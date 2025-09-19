@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "app-extensao-universitaria",
+    "slug": "app-extensao-universitaria",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/img/logoImagem.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {},
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/img/Imagem.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "favicon": "./assets/img/logoImagem.png"
+    },
+    "plugins": ["expo-font"]
+  }
+}
