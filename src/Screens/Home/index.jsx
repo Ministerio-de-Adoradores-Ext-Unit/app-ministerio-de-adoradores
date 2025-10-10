@@ -2,17 +2,19 @@ import React from "react";
 import { View, Text, SafeAreaView, StyleSheet, ScrollView } from "react-native";
 import { Button } from "../../components/button";
 import NavBar from "../../components/navBar";
-import Header from "../../components/header";
+import SimpleHeader from "../../components/header/simpleHeader";
 import { MenuButton } from "../../components/menuButton";
 import Carousel from "../../components/carousel";
-import CardContatos from "../../components/cardContatos";
-import SobreNos from "../../components/sobreNos";
-import Endereco from "../../components/endereco";
+import ContactCard from "../../components/contactCard";
+import AboutUs from "../../components/aboutUs";
+import Address from "../../components/address"; 
+import { useNavigation } from '@react-navigation/native';
 
 export default function Home() {
+  const navigation = useNavigation();
   return (
     <SafeAreaView style={styles.container}>
-      <Header />
+      <SimpleHeader />
 
       <ScrollView style={styles.scrollView}>
 
@@ -24,16 +26,16 @@ export default function Home() {
         <View style={styles.menu}>
           <MenuButton imageSource={require('../../../assets/img/img_eventos.png')} title={'EVENTOS'} />
           <MenuButton imageSource={require('../../../assets/img/img_midias.png')} title={'MÍDIAS'} />
-          <MenuButton imageSource={require('../../../assets/img/img_doacao.png')} title={'DOAÇÕES'} />
-          <MenuButton imageSource={require('../../../assets/img/img_oracoes.png')} title={'ORAÇÕES'} />
+          <MenuButton imageSource={require('../../../assets/img/img_doacao.png')} title={'DOAÇÕES'} onPress={() => navigation.navigate('DonationsRequests')} />
+          <MenuButton imageSource={require('../../../assets/img/img_oracoes.png')} title={'ORAÇÕES'} onPress={() => navigation.navigate('DonationsRequests')} />
           <MenuButton imageSource={require('../../../assets/img/img_participe.png')} title={'PARTICIPE'} />
           <MenuButton imageSource={require('../../../assets/img/img_live.png')} title={'LIVES'} />
         </View>
 
-        <CardContatos />
-        <SobreNos />
+        <ContactCard />
+        <AboutUs />
       </View>
-      <Endereco />
+      <Address />
       </ScrollView>
 
       <NavBar />
