@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 
-export default function SobreNos() {
+export default function AboutUs() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>SOBRE NÓS</Text>

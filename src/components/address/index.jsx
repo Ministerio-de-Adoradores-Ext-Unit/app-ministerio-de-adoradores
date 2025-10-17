@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 
-export default function Endereco() {
+export default function Address() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>ENDEREÇO</Text>
