@@ -12,8 +12,9 @@ export default function Header ({title}){
 export const SimpleContainer = styled.View`
     background-color: #001F3D;
     position: fixed;
+    z-index:999;
     width: 100%;
-    height: 20%;
+    height: 10%;
     padding: 10px;
     align-items: center;
     justify-content: center;

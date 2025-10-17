@@ -1,19 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, FlatList, Image, useWindowDimensions } from 'react-native';
+import React, { useState, useEffect, useRef } from "react";
+import { View, FlatList, Image, useWindowDimensions } from "react-native";
 import Animated, {
   Layout,
   FadeInLeft,
   FadeOutRight,
-} from 'react-native-reanimated';
-import img1 from '../../../assets/img/ctn_primeiro.png';
-import img2 from '../../../assets/img/Rectangle 1.png';
-import img3 from '../../../assets/img/ctn_terceiro.png';
+} from "react-native-reanimated";
+import img1 from "../../../assets/img/ctn_primeiro.png";
+import img2 from "../../../assets/img/Rectangle 1.png";
+import img3 from "../../../assets/img/ctn_terceiro.png";
 
-const DATA = [
-  { image: img1 },
-  { image: img2 },
-  { image: img3 },
-];
+const DATA = [{ image: img1 }, { image: img2 }, { image: img3 }];
 
 const Carousel = () => {
   const { width } = useWindowDimensions();
@@ -66,14 +62,14 @@ const Carousel = () => {
               height: BANNER_HEIGHT,
               marginHorizontal: HORIZONTAL_MARGIN,
               borderRadius: 30,
-              alignItems: 'center',
+              alignItems: "center",
             }}
           >
             <Image
               source={item.image}
               style={{
-                width: '100%',
-                height: '100%',
+                width: "100%",
+                height: "100%",
                 borderRadius: 30,
               }}
               resizeMode="cover"
@@ -99,7 +95,7 @@ const Carousel = () => {
               width: activeBanner === index ? 12 : 8,
               height: 8,
               borderRadius: 4,
-              backgroundColor: activeBanner === index ? 'black' : 'gray',
+              backgroundColor: activeBanner === index ? "black" : "gray",
               marginHorizontal: 4,
             }}
           />
@@ -107,7 +103,7 @@ const Carousel = () => {
         horizontal
         scrollEnabled={false}
         keyExtractor={(item, index) => String(index)}
-        style={{ marginTop: 16, alignSelf: 'center' }}
+        style={{ marginTop: 16, alignSelf: "center" }}
         contentContainerStyle={{ paddingBottom: 10 }}
       />
     </View>

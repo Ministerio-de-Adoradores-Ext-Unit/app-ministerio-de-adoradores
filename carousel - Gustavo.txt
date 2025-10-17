@@ -1,0 +1,55 @@
+import React, { useRef } from "react";
+import { Image, useWindowDimensions, View } from "react-native";
+import Carousel from "react-native-snap-carousel";
+import img1 from "../../../assets/img/ctn_primeiro.png";
+import img3 from "../../../assets/img/ctn_terceiro.png";
+import img2 from "../../../assets/img/Rectangle 1.png";
+
+const DATA = [{ image: img1 }, { image: img2 }, { image: img3 }];
+
+const CarouselComponent = () => {
+  const { width } = useWindowDimensions();
+  const carouselRef = useRef(null);
+  const BANNER_WIDTH = width * 0.8;
+  const BANNER_HEIGHT = width * 0.45;
+
+  return (
+    <View>
+      <Carousel
+        ref={carouselRef}
+        data={DATA}
+        renderItem={({ item }) => (
+          <View
+            style={{
+              width: BANNER_WIDTH,
+              height: BANNER_HEIGHT,
+              borderRadius: 30,
+              alignItems: "center",
+              overflow: "hidden",
+            }}
+          >
+            <Image
+              source={item.image}
+              style={{
+                width: "100%",
+                height: "100%",
+              }}
+              resizeMode="cover"
+            />
+          </View>
+        )}
+        sliderWidth={width}
+        itemWidth={BANNER_WIDTH}
+        inactiveSlideScale={0.94}
+        inactiveSlideOpacity={0.7}
+        enableMomentum={true}
+        activeSlideAlignment={"center"}
+        containerCustomStyle={{ marginTop: 20 }}
+        contentContainerCustomStyle={{ paddingHorizontal: 10 }}
+        useScrollView={true}
+      />
+    </View>
+  );
+};
+
+export default CarouselComponent;

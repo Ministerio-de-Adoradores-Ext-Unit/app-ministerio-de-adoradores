@@ -4,11 +4,11 @@ import { Button } from "../../components/button";
 import NavBar from "../../components/navBar";
 import SimpleHeader from "../../components/header/simpleHeader";
 import { MenuButton } from "../../components/menuButton";
-import Carousel from "../../components/carousel";
+import CarouselComponent from "../../components/carousel";
 import ContactCard from "../../components/contactCard";
 import AboutUs from "../../components/aboutUs";
-import Address from "../../components/address"; 
-import { useNavigation } from '@react-navigation/native';
+import Address from "../../components/address";
+import { useNavigation } from "@react-navigation/native";
 
 export default function Home() {
   const navigation = useNavigation();
@@ -17,25 +17,44 @@ export default function Home() {
       <SimpleHeader />
 
       <ScrollView style={styles.scrollView}>
-
-      <View style={styles.carousel}>
-        <Carousel />
-      </View>
-
-      <View style={styles.menuContainer}>
-        <View style={styles.menu}>
-          <MenuButton imageSource={require('../../../assets/img/img_eventos.png')} title={'EVENTOS'} />
-          <MenuButton imageSource={require('../../../assets/img/img_midias.png')} title={'MÍDIAS'} />
-          <MenuButton imageSource={require('../../../assets/img/img_doacao.png')} title={'DOAÇÕES'} onPress={() => navigation.navigate('DonationsRequests')} />
-          <MenuButton imageSource={require('../../../assets/img/img_oracoes.png')} title={'ORAÇÕES'} onPress={() => navigation.navigate('DonationsRequests')} />
-          <MenuButton imageSource={require('../../../assets/img/img_participe.png')} title={'PARTICIPE'} />
-          <MenuButton imageSource={require('../../../assets/img/img_live.png')} title={'LIVES'} />
+        <View style={styles.carousel}>
+          <CarouselComponent />
         </View>
 
-        <ContactCard />
-        <AboutUs />
-      </View>
-      <Address />
+        <View style={styles.menuContainer}>
+          <View style={styles.menu}>
+            <MenuButton
+              imageSource={require("../../../assets/img/img_eventos.png")}
+              title={"EVENTOS"}
+            />
+            <MenuButton
+              imageSource={require("../../../assets/img/img_midias.png")}
+              title={"MÍDIAS"}
+            />
+            <MenuButton
+              imageSource={require("../../../assets/img/img_doacao.png")}
+              title={"DOAÇÕES"}
+              onPress={() => navigation.navigate("DonationsRequests")}
+            />
+            <MenuButton
+              imageSource={require("../../../assets/img/img_oracoes.png")}
+              title={"ORAÇÕES"}
+              onPress={() => navigation.navigate("DonationsRequests")}
+            />
+            <MenuButton
+              imageSource={require("../../../assets/img/img_participe.png")}
+              title={"PARTICIPE"}
+            />
+            <MenuButton
+              imageSource={require("../../../assets/img/img_live.png")}
+              title={"LIVES"}
+            />
+          </View>
+
+          <ContactCard />
+          <AboutUs />
+        </View>
+        <Address />
       </ScrollView>
 
       <NavBar />
@@ -49,8 +68,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   carousel: {
-    marginTop: 10,
-    marginBottom: 20,
+    marginTop: "25%",
+    marginBottom: "5%",
   },
   menuContainer: {
     flex: 1,
@@ -58,14 +77,14 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
   menu: {
-    width: '90%',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+    width: "90%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
     gap: 10,
     marginBottom: 20,
   },
   scrollView: {
-    paddingBottom: '10px',
-  }
+    paddingBottom: 10,
+  },
 });
