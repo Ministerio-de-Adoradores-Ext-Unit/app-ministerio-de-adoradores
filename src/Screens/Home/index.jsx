@@ -68,7 +68,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   carousel: {
-    marginTop: "25%",
     marginBottom: "5%",
   },
   menuContainer: {
@@ -86,5 +85,6 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     paddingBottom: 10,
+    paddingTop: '25%'
   },
 });
