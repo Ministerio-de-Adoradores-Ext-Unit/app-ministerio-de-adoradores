@@ -1,0 +1,79 @@
+import React, { useState } from "react";
+import { View, ScrollView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import SearchHeader from "../../components/header/searchHeader";
+import TitleComponent from "../../components/titles";
+import InputComponent from "../../components/inputs";
+import ButtonForm from "../../components/button/buttonsForm";
+import NavBar from "../../components/navBar";
+import styles from "./style";
+
+const SocialMedia = () => {
+  const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
+
+  const [loading, setLoading] = useState(false);
+
+  const isCheckValid = () => {
+    const isCheckEmail =
+      /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+    if (!email.trim) {
+      Alert.alert("Por favor, insira um e-mail");
+      return;
+    } else if (!isCheckEmail.test(email)) {
+      Alert.alert("Insira um e-mail válido");
+    } else {
+      setLoading(true);
+      setTimeout(() => {
+        setLoading(false);
+        navigation.navigate("Home");
+      }, 2000);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <SearchHeader />
+
+      <ScrollView style={styles.scrollView}>
+        <View>
+          <TitleComponent title="PARTICIPE" />
+          <InputComponent placeholder="Nome completo" />
+          <InputComponent
+            placeholder="Celular"
+            setValor={setTelefone}
+            valorInserido={telefone}
+            keyboardType="phone-pad"
+            maxLength={15}
+            mask="(99) 99999-9999"
+          />
+          <InputComponent
+            placeholder="E-mail"
+            setValor={setEmail}
+            valorInserido={email}
+            keyboardType="email-address"
+          />
+          <InputComponent placeholder="Categoria Desejada" />
+          <InputComponent placeholder="Selecione a Data" />
+
+          {loading ? (
+            <View style={{ alignItems: "center", marginTop: 20 }}>
+              <Text style={{ fontWeight: "bold", fontSize: 16 }}>
+                Enviando...
+              </Text>
+            </View>
+          ) : (
+            <ButtonForm
+              title={"INSCREVER-SE"}
+              onPress={isCheckValid}
+              style={{ width: "45%", marginTop: 20, marginLeft: "28%" }}
+            />
+          )}
+        </View>
+      </ScrollView>
+
+      <NavBar />
+    </SafeAreaView>
+  );
+};
+export default SocialMedia;

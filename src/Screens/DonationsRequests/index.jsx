@@ -1,15 +1,26 @@
 import React from "react";
-import { SafeAreaView, StyleSheet, ScrollView, View, Image } from "react-native";
+import {
+  ScrollView,
+  View,
+  Image,
+  Text
+} from "react-native";
+import {SafeAreaView} from "react-native-safe-area-context";
 import NavBar from "../../components/navBar";
 import SearchHeader from "../../components/header/searchHeader";
 import InputComponent from "../../components/inputs";
+import TitleComponent from "../../components/titles";
+import ButtonForm from "../../components/button/buttonsForm";
+import styles from "./style";
 
-export default function DonationsRequests() {
+const DonationsRequests = () => {
   return (
     <SafeAreaView style={styles.container}>
       <SearchHeader />
 
       <ScrollView style={styles.scrollView}>
+        <TitleComponent title="DOAÇÕES" />
+
         <View style={styles.banner}>
           <Image
             source={require("../../../assets/img/banner_doacao_1.png")}
@@ -24,41 +35,33 @@ export default function DonationsRequests() {
           />
         </View>
 
-        <InputComponent label='NOME COMPLETO: ' placeholder='Nome completo...' />
-        <InputComponent label='INFORMAÇÕES COMPLEMENTARES: ' placeholder='...' />
+        <View>
+          <Text style={[styles.title, { fontSize: 26 }]}>
+            PEDIDOS DE ORAÇÃO
+          </Text>
+
+          <InputComponent
+            label="NOME COMPLETO: "
+            placeholder="Nome completo..."
+          />
+
+          <InputComponent
+            placeholder="Informações..."
+            label="INFORMÇÕES COMPLEMENTARES"
+            multiline={true}
+            style={{ height: 139, paddingTop: 10 }}
+          />
+
+          <ButtonForm
+            title={"ENVIAR"}
+            onPress={() => {}}
+            style={{ width: "35%", marginTop: 20, marginLeft: '33%' }}
+          />
+        </View>
       </ScrollView>
 
       <NavBar />
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  banner: {
-    width: "90%",
-    height: 106,
-    borderRadius: 16,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.3, 
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    marginVertical: 10,
-    alignSelf: "center",
-    overflow: "hidden",
-  },
-  image: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-    resizeMode: "cover",
-  },
-  scrollView: {
-    paddingBottom: "30",
-    paddingTop: '5%'
-  }
-});
+export default DonationsRequests;

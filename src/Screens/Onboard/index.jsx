@@ -1,11 +1,12 @@
-import { StyleSheet, Text, Image, TouchableOpacity, Dimensions, SafeAreaView, ScrollView, View} from "react-native";
 import React from "react";
+import { StyleSheet, Text, Image, TouchableOpacity, Dimensions, ScrollView, View} from "react-native";
+import {SafeAreaView} from "react-native-safe-area-context";
 import theme from '../../theme/theme';
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Feather';
 
-const { width, height } = Dimensions.get('window'); // Pegando a largura e altura da tela
+const { width, height } = Dimensions.get('window'); 
 
 const Onboard = () => {
     const navigation = useNavigation();
@@ -50,54 +51,54 @@ const styles = StyleSheet.create({
         backgroundColor: '#001F3D'
     },
     container: {
-        flexGrow: 1, // Para garantir que o conteúdo ocupe toda a altura disponível
+        flexGrow: 1, 
         justifyContent: 'center',
         alignItems: 'center',
     },
     image: {
-        width:'100%', // 80% da largura da tela
-        height: '65%', // 50% da altura da tela
+        width:'100%', 
+        height: '65%', 
        // marginBottom: 30,
        marginTop: -45,
     },
     text: {
-        fontSize: width * 0.11, // Tamanho proporcional à largura
+        fontSize: width * 0.11, 
         color: 'white',
         fontFamily: theme.FONTS.BOLD,
         marginLeft: '8%',
         marginTop: 5
     },
     text2: {
-        fontSize: width * 0.09, // Tamanho proporcional à largura
+        fontSize: width * 0.09, 
         color: 'white',
-        paddingRight: width * 0.15, // 15% da largura
+        paddingRight: width * 0.15, 
         marginTop: -15,
         fontFamily: theme.FONTS.BOLD
     },
     text3: {
-        fontSize: width * 0.08, // Tamanho proporcional à largura
+        fontSize: width * 0.08, 
         color: 'white',
-        paddingRight: width * 0.2, // 20% da largura
+        paddingRight: width * 0.2, 
         marginTop: 10,
         fontFamily: theme.FONTS.MEDIUM, 
         marginLeft: '8%'
     },
     text4: {
-        fontSize: width * 0.08, // Tamanho proporcional à largura
+        fontSize: width * 0.08, 
         color: 'white',
-        paddingRight: width * 0.35, // 35% da largura
+        paddingRight: width * 0.35, 
         marginTop: -5,
         fontFamily: theme.FONTS.MEDIUM
     },
     button: {
         backgroundColor: '#FFF',
-        width: width * 0.18, // 18% da largura da tela
-        height: width * 0.18, // Tornar o botão quadrado, 18% da largura
-        borderRadius: width * 0.18 / 2, // A metade da largura para fazer o botão redondo
+        width: width * 0.18, 
+        height: width * 0.18, 
+        borderRadius: width * 0.18 / 2, 
         justifyContent: 'center',
         alignItems: 'center',
         position: 'absolute',
-        bottom: height * 0.05, // 5% da altura da tela
-        right: width * 0.05, // 5% da largura da tela
+        bottom: height * 0.05, 
+        right: width * 0.05, 
     }
 });
