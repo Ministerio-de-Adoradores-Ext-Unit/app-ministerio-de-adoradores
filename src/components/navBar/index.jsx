@@ -1,18 +1,23 @@
 import React from "react";
-import { Touchable, TouchableOpacity } from "react-native";
-import { Container, Icon, NavButton, Title } from "./style";
+import { TouchableOpacity } from "react-native";
+import { Container, Icon, NavButton, Title } from "./style"; 
 
-export default function NavBar(){
+export default function NavBar({ isAdmin = false }) { 
     return (
-        <Container> 
+        <Container>
+            
             <NavButton>
                 <Icon source={require('../../../assets/img/icon_home.png')}/>
-                <Title> Home </Title>
+                <Title> Início </Title>
             </NavButton>
-            <NavButton>
-                <Icon source={require('../../../assets/img/icon_profile.png')}/>
-                <Title> Perfil </Title>
-            </NavButton>
+            
+            {!isAdmin && (
+                <NavButton>
+                    <Icon source={require('../../../assets/img/icon_profile.png')}/>
+                    <Title> Perfil </Title>
+                </NavButton>
+            )}
+            
         </Container>
-    ) 
+    )
 }
