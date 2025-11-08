@@ -32,8 +32,8 @@ const SearchBar = () => {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "#002347",
-    height: 166,
-    paddingTop: 35,
+    height: 150,
+    paddingTop: 25,
     paddingHorizontal: 50,
     borderBottomLeftRadius: 60,
   },

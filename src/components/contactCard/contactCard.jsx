@@ -55,6 +55,7 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingRight: 0, 
     margin: 16,
+    marginTop: 45,
     alignItems: 'center',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
@@ -63,7 +64,7 @@ const styles = StyleSheet.create({
   textContainer: {
     flex: 1,
     maxWidth: SCREEN_WIDTH * 100,
-    marginRight:15
+    marginRight: 15
   },
   title: {
     color: '#fff',

@@ -4,6 +4,7 @@ import styled from "styled-components/native";
 export default function Header ({title}){
     return (
         <SimpleContainer>
+
             <Title>{title}</Title>
         </SimpleContainer>
     )
@@ -14,7 +15,7 @@ export const SimpleContainer = styled.View`
     position: fixed;
     z-index:999;
     width: 100%;
-    height: 10%;
+    height: 8%;
     padding: 10px;
     align-items: center;
     justify-content: center;

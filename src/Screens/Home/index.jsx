@@ -1,11 +1,11 @@
 import React from "react";
-import { View, Text, SafeAreaView, StyleSheet, ScrollView } from "react-native";
-import { Button } from "../../components/button";
+import { View, StyleSheet, ScrollView } from "react-native";
+import {SafeAreaView} from "react-native-safe-area-context";
 import NavBar from "../../components/navBar";
 import SimpleHeader from "../../components/header/simpleHeader";
 import { MenuButton } from "../../components/menuButton";
 import CarouselComponent from "../../components/carousel";
-import ContactCard from "../../components/contactCard";
+import ContactCard from "../../components/contactCard/contactCard";
 import AboutUs from "../../components/aboutUs";
 import Address from "../../components/address";
 import { useNavigation } from "@react-navigation/native";
@@ -44,10 +44,12 @@ export default function Home() {
             <MenuButton
               imageSource={require("../../../assets/img/img_participe.png")}
               title={"PARTICIPE"}
+              onPress={() => navigation.navigate("SocialMedia")}
             />
             <MenuButton
               imageSource={require("../../../assets/img/img_live.png")}
               title={"LIVES"}
+              onPress={() => navigation.navigate("SocialMedia")}
             />
           </View>
 
@@ -66,10 +68,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
   },
   carousel: {
-    marginTop: "25%",
-    marginBottom: "5%",
+    marginBottom: 20,
   },
   menuContainer: {
     flex: 1,
@@ -82,9 +85,9 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "center",
     gap: 10,
-    marginBottom: 20,
   },
   scrollView: {
     paddingBottom: 10,
+    paddingTop: 30
   },
 });
