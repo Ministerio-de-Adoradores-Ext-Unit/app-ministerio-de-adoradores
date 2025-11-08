@@ -68,9 +68,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
   },
   carousel: {
-    marginBottom: "5%",
+    marginBottom: 20,
   },
   menuContainer: {
     flex: 1,
@@ -83,10 +85,9 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "center",
     gap: 10,
-    marginBottom: 20,
   },
   scrollView: {
     paddingBottom: 10,
-    paddingTop: '25%'
+    paddingTop: 30
   },
 });

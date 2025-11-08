@@ -18,7 +18,10 @@ const SocialMedia = () => {
     <SafeAreaView style={styles.container}>
       <SearchHeader />
 
-      <ScrollView style={styles.scrollView}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View>
           <TitleComponent title="PARTICIPE" />
           <InputComponent placeholder="Nome completo" />
@@ -48,18 +51,20 @@ const SocialMedia = () => {
           />
           <InputComponent placeholder="Selecione a Data" />
 
-          <ButtonForm
-            title={"INSCREVER-SE"}
-            style={{ width: "45%", marginTop: 20, marginLeft: "28%" }}
-          />
+          <View>
+            <ButtonForm
+              title={"INSCREVER-SE"}
+              style={{ width: "50%", marginTop: 20, alignSelf: "center" }}
+            />
+          </View>
         </View>
 
         <View style={styles.socialButtons}>
-          <Text style={[styles.title, { fontSize: 20 }]}>
+          <Text style={styles.title}>
             INSCREVA-SE E FIQUE POR DENTRO DAS NOVIDADES
           </Text>
 
-          <SocialButtons/>
+          <SocialButtons style={styles.socialButtons} />
         </View>
       </ScrollView>
 

@@ -6,19 +6,26 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   scrollView: {
-    paddingBottom: "30%",
+    flex: 1,
+  },
+  scrollContent: {
+    alignItems: "center",
     paddingTop: 15,
+    paddingBottom: 50,
   },
   title: {
-    fontSize: 30,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#001F3D",
     textAlign: "center",
-    marginVertical: '12%',
-    width: '80%',
+    marginTop: 40,
+    width: "80%",
   },
   socialButtons: {
+    width: "100%",
     alignItems: "center",
-  }
+    marginBottom: 50,
+  },
 });
+
 export default styles;
