@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
   Image,
   Modal,
+  Platform,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -17,46 +18,63 @@ import styles from "./style";
 import SearchHeader from "../../components/header/searchHeader";
 import NavBar from "../../components/navBar";
 import TitleComponent from "../../components/titles";
+import useScreenData from "../../hooks/useScreenData";
+import {
+  listEventsWithImages,
+  listMediaByCategory,
+  listMediaCategories,
+} from "../../services/supabaseData";
 
-const events = [
-  {
-    id: "irmas",
-    title: "Culto das Irmãs",
-    image: require("../../../assets/img/Rectangle 1.png"),
-  },
-  {
-    id: "jovens",
-    title: "Culto dos Jovens",
-    image: require("../../../assets/img/ctn_terceiro.png"),
-  },
-  {
-    id: "santa-ceia",
-    title: "Santa Ceia",
-    image: require("../../../assets/img/ctn_primeiro.png"),
-  },
-];
+const IMAGE_REFRESH_MS = 50 * 60 * 1000;
 
-const mediaPhotos = [
-  require("../../../assets/img/Rectangle 1.png"),
-  require("../../../assets/img/ctn_primeiro.png"),
-  require("../../../assets/img/ctn_terceiro.png"),
-  require("../../../assets/img/banner_doacao_1.png"),
-  require("../../../assets/img/banner_doacao_2.png"),
-];
+// Preserva as capas decorativas do design; não são fotos da galeria.
+const categoryCover = (name) => {
+  const normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (normalized.includes("jov")) {
+    return require("../../../assets/img/ctn_terceiro.png");
+  }
+  if (normalized.includes("ceia") || normalized.includes("crianca")) {
+    return require("../../../assets/img/ctn_primeiro.png");
+  }
+  return require("../../../assets/img/Rectangle 1.png");
+};
 
-const mediaCategories = [
-  { id: "congresso", title: "CONGRESSO", image: events[0].image },
-  { id: "santa-ceia", title: "SANTA CEIA", image: events[2].image },
-  { id: "jovens", title: "CULTO JOVEM", image: events[1].image },
-  { id: "irmas", title: "CULTO DAS IRMÃS", image: events[0].image },
-  { id: "criancas", title: "CULTO INFANTIL", image: events[2].image },
-];
+const DatabaseImage = ({ imageUrl, style }) => {
+  const [failedUrl, setFailedUrl] = useState(null);
+  return imageUrl && imageUrl !== failedUrl ? (
+    <Image source={{ uri: imageUrl }} style={style} onError={() => setFailedUrl(imageUrl)} />
+  ) : (
+    <View style={style}><Text>Imagem indisponível</Text></View>
+  );
+};
 
 const EventsAndMedia = () => {
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const savingPhoto = useRef(false);
+  const events = useScreenData(listEventsWithImages, { refreshMs: IMAGE_REFRESH_MS });
+  const categories = useScreenData(listMediaCategories);
+  const categoryId = selectedCategory?.id;
+  const loadPhotos = useCallback(() => listMediaByCategory(categoryId), [categoryId]);
+  const photos = useScreenData(loadPhotos, { refreshMs: IMAGE_REFRESH_MS });
 
-  const savePhoto = async (source) => {
+  const savePhoto = async (imageUrl) => {
+    if (!imageUrl || savingPhoto.current) return;
+    savingPhoto.current = true;
     try {
+      if (Platform.OS === "web") {
+        const response = await fetch(imageUrl);
+        if (!response.ok) throw new Error("Não foi possível baixar a imagem.");
+        const downloadUrl = URL.createObjectURL(await response.blob());
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = decodeURIComponent(new URL(imageUrl).pathname.split("/").pop()) || "foto.jpg";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(downloadUrl), 60 * 1000);
+        return;
+      }
+
       const permission = await MediaLibrary.requestPermissionsAsync(true);
       if (!permission.granted) {
         Alert.alert(
@@ -66,7 +84,7 @@ const EventsAndMedia = () => {
         return;
       }
 
-      const asset = await Asset.fromModule(source).downloadAsync();
+      const asset = await Asset.fromURI(imageUrl).downloadAsync();
       await MediaLibrary.saveToLibraryAsync(asset.localUri || asset.uri);
       Alert.alert(
         "Foto salva",
@@ -74,6 +92,8 @@ const EventsAndMedia = () => {
       );
     } catch {
       Alert.alert("Não foi possível salvar", "Tente novamente em instantes.");
+    } finally {
+      savingPhoto.current = false;
     }
   };
 
@@ -89,16 +109,23 @@ const EventsAndMedia = () => {
         <TitleComponent title="EVENTOS" />
 
         <FlatList
-          data={events}
+          data={events.data}
           horizontal
           keyExtractor={(item) => item.id}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.eventList}
+          ListEmptyComponent={
+            <Text accessibilityLiveRegion="polite">
+              {events.loading ? "Carregando eventos..." : events.errorMessage
+                ? "Não foi possível carregar os eventos. Reabra a tela para tentar novamente."
+                : "Nenhum evento disponível."}
+            </Text>
+          }
           renderItem={({ item }) => (
             <View style={styles.eventCard}>
-              <Image source={item.image} style={styles.eventImage} />
+              <DatabaseImage imageUrl={item.imageUrl} style={styles.eventImage} />
               <Text style={styles.eventTitle} numberOfLines={1}>
-                {item.title}
+                {item.titulo}
               </Text>
               <View style={styles.eventDetail}>
                 <Feather
@@ -107,7 +134,7 @@ const EventsAndMedia = () => {
                   color="#fff"
                   style={styles.detailIcon}
                 />
-                <Text style={styles.eventDetailText}>Local a confirmar</Text>
+                <Text style={styles.eventDetailText}>{item.local || "Local a confirmar"}</Text>
               </View>
               <View style={styles.eventDetail}>
                 <Feather
@@ -116,7 +143,9 @@ const EventsAndMedia = () => {
                   color="#fff"
                   style={styles.detailIcon}
                 />
-                <Text style={styles.eventDetailText}>Data a confirmar</Text>
+                <Text style={styles.eventDetailText}>
+                  {item.data ? item.data.split("-").reverse().join("/") : "Data a confirmar"}
+                </Text>
               </View>
               <View style={styles.eventDetail}>
                 <Feather
@@ -125,7 +154,7 @@ const EventsAndMedia = () => {
                   color="#fff"
                   style={styles.detailIcon}
                 />
-                <Text style={styles.eventDetailText}>Horário a confirmar</Text>
+                <Text style={styles.eventDetailText}>{item.horario?.slice(0, 5) || "Horário a confirmar"}</Text>
               </View>
             </View>
           )}
@@ -133,21 +162,28 @@ const EventsAndMedia = () => {
 
         <TitleComponent title="MÍDIAS" />
         <FlatList
-          data={mediaCategories}
+          data={categories.data}
           horizontal
           keyExtractor={(item) => item.id}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoryList}
+          ListEmptyComponent={
+            <Text accessibilityLiveRegion="polite">
+              {categories.loading ? "Carregando categorias..." : categories.errorMessage
+                ? "Não foi possível carregar as categorias. Reabra a tela para tentar novamente."
+                : "Nenhuma categoria disponível."}
+            </Text>
+          }
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.categoryButton}
               onPress={() => setSelectedCategory(item)}
               accessibilityRole="button"
-              accessibilityLabel={`Abrir fotos: ${item.title}`}
+              accessibilityLabel={`Abrir fotos: ${item.categoria}`}
             >
-              <Image source={item.image} style={styles.categoryImage} />
+              <Image source={categoryCover(item.categoria)} style={styles.categoryImage} />
               <Text style={styles.categoryTitle} numberOfLines={2}>
-                {item.title}
+                {item.categoria.toUpperCase()}
               </Text>
             </TouchableOpacity>
           )}
@@ -164,7 +200,7 @@ const EventsAndMedia = () => {
           <View style={styles.modalContent}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{selectedCategory?.title}</Text>
+              <Text style={styles.modalTitle}>{selectedCategory?.categoria.toUpperCase()}</Text>
               <TouchableOpacity
                 onPress={() => setSelectedCategory(null)}
                 style={styles.closeButton}
@@ -175,22 +211,29 @@ const EventsAndMedia = () => {
               </TouchableOpacity>
             </View>
             <FlatList
-              data={mediaPhotos}
+              data={photos.data}
               numColumns={2}
-              keyExtractor={(_, index) => `${selectedCategory?.id}-${index}`}
+              keyExtractor={(item) => item.id}
               contentContainerStyle={styles.photoGrid}
               columnWrapperStyle={styles.photoRow}
+              ListEmptyComponent={
+                <Text accessibilityLiveRegion="polite">
+                  {photos.loading ? "Carregando fotos..." : photos.errorMessage
+                    ? "Não foi possível carregar as fotos. Reabra a categoria para tentar novamente."
+                    : "Nenhuma mídia cadastrada nesta categoria."}
+                </Text>
+              }
               renderItem={({ item }) => (
                 <View style={styles.photoItem}>
-                  <Image source={item} style={styles.photoImage} />
-                  <TouchableOpacity
+                  <DatabaseImage imageUrl={item.imageUrl} style={styles.photoImage} />
+                  {item.imageUrl && <TouchableOpacity
                     style={styles.downloadButton}
-                    onPress={() => savePhoto(item)}
+                    onPress={() => savePhoto(item.imageUrl)}
                     accessibilityRole="button"
                     accessibilityLabel="Salvar foto na galeria"
                   >
                     <Feather name="download" size={18} color="#fff" />
-                  </TouchableOpacity>
+                  </TouchableOpacity>}
                 </View>
               )}
             />

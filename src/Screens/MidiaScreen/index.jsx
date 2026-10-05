@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,14 +7,27 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Image,
 } from "react-native";
 import NavBar from "../../components/navBar";
 import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/Feather";
+import { listMediaCategories } from "../../services/supabaseData";
+import useScreenData from "../../hooks/useScreenData";
 
 export default function MidiaScreen() {
   const navigation = useNavigation();
+  const [searchText, setSearchText] = useState("");
+  const categoriesState = useScreenData(listMediaCategories);
+  const categories = categoriesState.data;
+  const { loading, errorMessage } = categoriesState;
+
+  const filteredCategories = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+    if (!query) return categories;
+    return categories.filter((item) =>
+      item.categoria.toLowerCase().includes(query)
+    );
+  }, [categories, searchText]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -45,18 +58,26 @@ export default function MidiaScreen() {
             style={styles.searchInput}
             placeholder="Pesquisar..."
             placeholderTextColor="#002D62"
+            value={searchText}
+            onChangeText={setSearchText}
           />
           <Icon name="filter" size={20} color="#002D62" style={{ marginHorizontal: 8 }} />
         </View>
 
         {/* Botões de postagens */}
         <View style={styles.postsContainer}>
-          {["Congresso", "Santa Ceia", "Culto de Jovens", "Culto das Irmãs", "Culto de Crianças"].map(
-            (item, index) => (
-              <TouchableOpacity key={index} style={styles.postButton}>
-                <Text style={styles.postButtonText}>{item}</Text>
+          {filteredCategories.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.postButton}
+              >
+                <Text style={styles.postButtonText}>{item.categoria}</Text>
               </TouchableOpacity>
-            )
+          ))}
+          {loading && <Text style={styles.uploadText}>Carregando categorias...</Text>}
+          {!loading && !!errorMessage && <Text style={styles.uploadText}>{errorMessage}</Text>}
+          {!loading && !errorMessage && categories.length === 0 && (
+            <Text style={styles.uploadText}>Nenhuma categoria cadastrada.</Text>
           )}
         </View>
       </ScrollView>

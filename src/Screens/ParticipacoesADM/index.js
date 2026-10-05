@@ -1,58 +1,31 @@
-import React, { useState, useMemo } from "react"; 
-import { View, ScrollView, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, Alert, Image } from "react-native"; 
+import React, { useState, useMemo } from "react";
+import { View, ScrollView, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, Image } from "react-native";
 import Icon from 'react-native-vector-icons/MaterialIcons'; 
 import { useNavigation } from '@react-navigation/native'; 
 
 import AdminHeader from "../../components/header/AdminHeader"; 
 import { ListItem } from "../../components/ListItem"; 
 import NavBar from "../../components/navBar"; 
-
-
-const initialParticipationsData = [
-    { 
-        id: 1, 
-        name: "Maria Alves de Souza", 
-        content: "Doação de Alimentos\n29/08/2024 - 17:00", 
-        defaultOpen: true, 
-        status: "Ativo"
-    },
-    { 
-        id: 2,
-        name: "Alfreduo De Lima", 
-        content: "Campanha do Agasalho\n12/09/2024 - 08:00",
-        defaultOpen: false, 
-        status: "Ativo"
-    },
-    { 
-        id: 3,
-        name: "Ana Costa", 
-        content: "Campanha do Agasalho\n12/09/2024 - 08:00",
-        defaultOpen: true, 
-        status: "Pendente"
-    },
-];
+import { listEventRegistrations } from "../../services/supabaseData";
+import useScreenData from "../../hooks/useScreenData";
 
 export default function ParticipacoesADM() {
     const navigation = useNavigation();
     
     const [searchText, setSearchText] = useState(''); 
-    const [participations, setParticipations] = useState(initialParticipationsData);
-
-    const handleEditParticipation = (participationId) => {
-        Alert.alert(
-            "Ação ADM", 
-            `Abrir detalhes/edição da participação ID: ${participationId}.`
-        );
-    };
+    const { data: participations, loading, errorMessage } = useScreenData(
+        listEventRegistrations, { authenticated: true }
+    );
 
     const filteredParticipations = useMemo(() => {
-        if (!searchText) {
+        if (!searchText.trim()) {
             return participations;
         }
-        const lowerCaseSearch = searchText.toLowerCase();
+        const lowerCaseSearch = searchText.trim().toLowerCase();
         return participations.filter(item => 
-            item.name.toLowerCase().includes(lowerCaseSearch) ||
-            item.content.toLowerCase().includes(lowerCaseSearch)
+            item.nome_completo.toLowerCase().includes(lowerCaseSearch) ||
+            item.email.toLowerCase().includes(lowerCaseSearch) ||
+            item.events?.titulo?.toLowerCase().includes(lowerCaseSearch)
         );
     }, [participations, searchText]);
 
@@ -86,12 +59,22 @@ export default function ParticipacoesADM() {
                 </View>
 
                 <View style={styles.listContainer}>
+                    {loading && <Text style={styles.stateText}>Carregando participações...</Text>}
+                    {!loading && !!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+                    {!loading && !errorMessage && filteredParticipations.length === 0 && (
+                        <Text style={styles.stateText}>Nenhuma participação encontrada.</Text>
+                    )}
                     {filteredParticipations.map((item) => (
                         <ListItem
                             key={item.id} 
-                            title={item.name} 
+                            title={item.nome_completo}
                             hasContent={true} 
-                            content={<Text style={styles.contentText}>{item.content}</Text>}
+                            content={
+                                <Text style={styles.contentText}>
+                                    {item.events?.titulo ?? "Evento não encontrado"}{"\n"}
+                                    {item.telefone}{"\n"}{item.email}
+                                </Text>
+                            }
                             isDark={false} 
                         />
                     ))}
@@ -160,4 +143,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#333', 
     },
+    stateText: { textAlign: "center", color: "#555", padding: 20 },
+    errorText: { textAlign: "center", color: "#B00020", padding: 20 },
 });

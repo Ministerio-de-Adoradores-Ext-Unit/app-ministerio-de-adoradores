@@ -1,6 +1,6 @@
 // Arquivo: PrayerRequestsADM.js (AJUSTADO COM IMAGEM)
 
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { View, ScrollView, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, Image } from "react-native"; 
 import Icon from 'react-native-vector-icons/MaterialIcons'; 
 import { useNavigation } from '@react-navigation/native'; 
@@ -8,30 +8,24 @@ import { useNavigation } from '@react-navigation/native';
 import AdminHeader from "../../components/header/AdminHeader.jsx"; 
 import { ListItem } from "../../components/ListItem"; 
 import NavBar from "../../components/navBar"; 
-
-const prayerRequestsData = [
-    { 
-        name: "ANA SILVA (SAÚDE)", 
-        defaultOpen: true, 
-        content: "Peço oração urgente pela saúde de meu filho, João. Ele fará uma cirurgia delicada na próxima semana. Agradeço imensamente as orações da igreja.",
-        date: "01/11/2025"
-    },
-    { 
-        name: "MARCOS FERREIRA (EMPREGO)", 
-        defaultOpen: false, 
-        content: "Gostaria que orem por mim. Fui demitido e estou buscando uma nova colocação profissional na área de TI.",
-        date: "30/10/2025"
-    },
-    { 
-        name: "PATRÍCIA MOURA (FAMÍLIA)", 
-        defaultOpen: true, 
-        content: "Oração pela restauração do meu casamento. Temos passado por momentos difíceis, mas cremos que Deus pode intervir.",
-        date: "29/10/2025"
-    },
-];
+import { listPrayerRequests } from "../../services/supabaseData";
+import useScreenData from "../../hooks/useScreenData";
 
 export default function PrayerRequestsADM() {
     const navigation = useNavigation();
+    const [searchText, setSearchText] = useState("");
+    const { data: prayerRequests, loading, errorMessage } = useScreenData(
+        listPrayerRequests, { authenticated: true }
+    );
+
+    const filteredPrayerRequests = useMemo(() => {
+        const query = searchText.trim().toLowerCase();
+        if (!query) return prayerRequests;
+        return prayerRequests.filter((item) =>
+            item.nome.toLowerCase().includes(query) ||
+            item.pedido.toLowerCase().includes(query)
+        );
+    }, [prayerRequests, searchText]);
     
     return (
         <SafeAreaView style={styles.container}>
@@ -49,7 +43,8 @@ export default function PrayerRequestsADM() {
                             style={styles.searchInput}
                             placeholder="search..."
                             placeholderTextColor="#888"
-                            
+                            value={searchText}
+                            onChangeText={setSearchText}
                         />
                     </View>
                     
@@ -66,13 +61,17 @@ export default function PrayerRequestsADM() {
                 </View>
 
                 <View style={styles.listContainer}>
-                    {prayerRequestsData.map((item, index) => (
+                    {loading && <Text style={styles.stateText}>Carregando pedidos...</Text>}
+                    {!loading && !!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+                    {!loading && !errorMessage && filteredPrayerRequests.length === 0 && (
+                        <Text style={styles.stateText}>Nenhum pedido de oração encontrado.</Text>
+                    )}
+                    {filteredPrayerRequests.map((item) => (
                         <ListItem
-                            key={index}
-                            title={`${item.name} (${item.date})`} 
+                            key={item.id}
+                            title={`${item.nome} (${new Date(item.created_at).toLocaleDateString("pt-BR")})`}
                             hasContent={true} 
-                            content={<Text style={styles.contentText}>{item.content}</Text>}
-                            defaultExpanded={item.defaultOpen}
+                            content={<Text style={styles.contentText}>{item.pedido}</Text>}
                             isDark={true} 
                         />
                     ))}
@@ -140,5 +139,7 @@ const styles = StyleSheet.create({
     contentText: {
         fontSize: 14,
         color: '#FFF', 
-    }
+    },
+    stateText: { textAlign: "center", color: "#555", padding: 20 },
+    errorText: { textAlign: "center", color: "#B00020", padding: 20 },
 });
