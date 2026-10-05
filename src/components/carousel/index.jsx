@@ -36,14 +36,13 @@ const Carousel = () => {
   ]);
 
   useEffect(() => {
-    if (activeBanner >= DATA.length - 1) return;
-
     const timeoutId = setTimeout(() => {
+      const nextIndex = (activeBanner + 1) % DATA.length;
+
       flatListRef.current?.scrollToIndex({
-        index: activeBanner + 1,
+        index: nextIndex,
         animated: true,
       });
-      setActiveBanner((prev) => prev + 1);
     }, 3000);
 
     return () => clearTimeout(timeoutId);

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet, ScrollView } from "react-native";
-import {SafeAreaView} from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import NavBar from "../../components/navBar";
 import SimpleHeader from "../../components/header/simpleHeader";
 import { MenuButton } from "../../components/menuButton";
@@ -26,10 +26,12 @@ export default function Home() {
             <MenuButton
               imageSource={require("../../../assets/img/img_eventos.png")}
               title={"EVENTOS"}
+              onPress={() => navigation.navigate("EventsAndMedia")}
             />
             <MenuButton
               imageSource={require("../../../assets/img/img_midias.png")}
               title={"MÍDIAS"}
+              onPress={() => navigation.navigate("EventsAndMedia")}
             />
             <MenuButton
               imageSource={require("../../../assets/img/img_doacao.png")}
@@ -88,6 +90,6 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     paddingBottom: 10,
-    paddingTop: 30
+    paddingTop: 30,
   },
 });

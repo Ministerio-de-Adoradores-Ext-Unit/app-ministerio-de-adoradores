@@ -15,11 +15,21 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/img/Imagem.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.anonymous.appextensaouniversitaria"
     },
     "web": {
       "favicon": "./assets/img/logoImagem.png"
     },
-    "plugins": ["expo-font"]
+    "plugins": [
+      "expo-font",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Permita que o app acesse suas fotos.",
+          "savePhotosPermission": "Permita que o app salve fotos na galeria."
+        }
+      ]
+    ]
   }
 }

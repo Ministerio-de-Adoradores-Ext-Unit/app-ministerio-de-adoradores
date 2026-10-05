@@ -9,6 +9,8 @@ import MidiaScreen from "../Screens/MidiaScreen/index";
 import AdminScreen from "../Screens/AdminScreen/index";
 import PrayerRequestsADM from "../Screens/PrayerRequestsADM/index";
 import ParticipacoesADM from "../Screens/ParticipacoesADM/index";
+import EventsAndMedia from "../Screens/EventsAndMedia/index";
+import ManageEventsADM from "../Screens/ManageEventsADM";
 
 const Stack = createNativeStackNavigator();
 
@@ -27,6 +29,8 @@ const StackN = () => {
       <Stack.Screen name="AdminScreen" component={AdminScreen} />
       <Stack.Screen name="PrayerRequestsADM" component={PrayerRequestsADM} />
       <Stack.Screen name="ParticipacoesADM" component={ParticipacoesADM} />
+      <Stack.Screen name="ManageEventsADM" component={ManageEventsADM} />
+      <Stack.Screen name="EventsAndMedia" component={EventsAndMedia} />
     </Stack.Navigator>
   );
 };
