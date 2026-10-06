@@ -42,7 +42,7 @@ export default function LoginScreen() {
   const handleEntrar = () => {
     if (!validar()) return;
 
-    // TODO (Supabase): validar e-mail e senha aqui antes de entrar.
+    // (Supabase): validar e-mail e senha aqui antes de entrar.
     // Por enquanto só navega para a tela de administrador.
     navigation.navigate("AdminScreen");
   };
