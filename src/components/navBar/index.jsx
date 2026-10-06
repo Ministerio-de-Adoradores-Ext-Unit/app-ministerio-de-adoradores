@@ -20,7 +20,7 @@ export default function NavBar() {
       {/* Botão Perfil */}
       <NavButton
         as={TouchableOpacity}
-        onPress={() => navigation.navigate("AdminScreen")}
+        onPress={() => navigation.navigate("Login")}
       >
         <Icon source={require("../../../assets/img/icon_profile.png")} />
         <Title>Perfil</Title>

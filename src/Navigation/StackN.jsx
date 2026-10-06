@@ -6,6 +6,7 @@ import Home from "../Screens/Home/index";
 import DonationsRequests from "../Screens/DonationsRequests/index";
 import SocialMedia from "../Screens/SocialMedia";
 import MidiaScreen from "../Screens/MidiaScreen/index";
+import LoginScreen from "../Screens/Login/index";
 import AdminScreen from "../Screens/AdminScreen/index";
 import PrayerRequestsADM from "../Screens/PrayerRequestsADM/index";
 import ParticipacoesADM from "../Screens/ParticipacoesADM/index";
@@ -26,6 +27,7 @@ const StackN = () => {
       <Stack.Screen name="DonationsRequests" component={DonationsRequests} />
       <Stack.Screen name="SocialMedia" component={SocialMedia} />
       <Stack.Screen name="MidiaScreen" component={MidiaScreen} />
+      <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="AdminScreen" component={AdminScreen} />
       <Stack.Screen name="PrayerRequestsADM" component={PrayerRequestsADM} />
       <Stack.Screen name="ParticipacoesADM" component={ParticipacoesADM} />
