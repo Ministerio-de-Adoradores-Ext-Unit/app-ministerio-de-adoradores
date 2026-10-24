@@ -2,11 +2,13 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
 const vm = require('node:vm');
 const babel = require('@babel/core');
+const { loadProjectEnv, parseEnvFiles } = require('@expo/env');
 
 // Executa os módulos reais; simula somente a fronteira com banco, navegação e SO.
-function load(file, dependencies) {
+function load(file, dependencies, env = { EXPO_PUBLIC_SUPABASE_URL: 'https://project.supabase.co' }) {
   const filename = path.join(__dirname, '..', file);
   const { code } = babel.transformSync(fs.readFileSync(filename, 'utf8'), {
     filename, configFile: false, babelrc: false,
@@ -18,11 +20,102 @@ function load(file, dependencies) {
       if (!(name in dependencies)) throw new Error(`Dependência não simulada: ${name}`);
       return dependencies[name];
     },
-    URL, process: { env: { EXPO_PUBLIC_SUPABASE_URL: 'https://project.supabase.co' } },
+    URL, process: { env },
     setTimeout, clearTimeout, setInterval, clearInterval,
   }, { filename });
   return exports;
 }
+
+const publicEnvPath = path.join(__dirname, '..', '.env');
+const publicEnvKeys = ['EXPO_PUBLIC_SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY'];
+
+function configFixture(t, localConfiguration = '') {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ministerio-env-'));
+  t.after(() => {
+    // Remove somente os dois arquivos conhecidos e, por último, a pasta vazia.
+    for (const name of ['.env.local', '.env']) {
+      const filename = path.join(directory, name);
+      if (fs.existsSync(filename)) fs.unlinkSync(filename);
+    }
+    fs.rmdirSync(directory);
+  });
+  fs.copyFileSync(publicEnvPath, path.join(directory, '.env'));
+  if (localConfiguration) {
+    fs.writeFileSync(path.join(directory, '.env.local'), localConfiguration, 'utf8');
+  }
+  return directory;
+}
+
+function loadClient(env, calls = []) {
+  return load('src/lib/supabase.js', {
+    '@react-native-async-storage/async-storage': {},
+    '@supabase/supabase-js': { createClient: (url, key, options) => {
+      calls.push({ url, key, options });
+      return { ready: true };
+    } },
+  }, env);
+}
+
+test('configuração compartilhada contém somente URL e chave publicável, sem placeholders', () => {
+  const { env } = parseEnvFiles([publicEnvPath], { systemEnv: {} });
+  assert.deepEqual(Object.keys(env).sort(), [...publicEnvKeys].sort());
+  const url = new URL(env.EXPO_PUBLIC_SUPABASE_URL);
+  assert.equal(url.protocol, 'https:');
+  assert.ok(url.hostname.endsWith('.supabase.co'), 'Use a URL do projeto Supabase.');
+  assert.ok(!url.hostname.includes('seu-projeto'), 'Substitua o endereço de exemplo.');
+  assert.ok(/^sb_publishable_[A-Za-z0-9_-]+$/.test(env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
+    'Use somente uma chave publicável, nunca uma chave secreta.');
+  assert.ok(!env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY.includes('sua_chave'),
+    'Substitua a chave de exemplo.');
+});
+
+test('checkout sem .env.local carrega a configuração do Expo e inicializa o cliente', (t) => {
+  const directory = configFixture(t);
+  const systemEnv = {};
+  const result = loadProjectEnv(directory, { mode: 'development', systemEnv, silent: true, force: true });
+  const calls = [];
+  const client = loadClient(systemEnv, calls);
+  assert.equal(result.result, 'loaded');
+  assert.equal(result.files.length, 1);
+  assert.equal(path.basename(result.files[0]), '.env');
+  assert.equal(client.supabase.ready, true);
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].url === result.env.EXPO_PUBLIC_SUPABASE_URL, 'A URL compartilhada deve chegar ao cliente.');
+  assert.ok(calls[0].key === result.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY, 'A chave pública deve chegar ao cliente.');
+  assert.equal(calls[0].options.auth.persistSession, true);
+});
+
+test('.env.local opcional mantém prioridade sobre a configuração compartilhada', (t) => {
+  const directory = configFixture(t,
+    'EXPO_PUBLIC_SUPABASE_URL=https://local-test.supabase.co\nEXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_local_test\n');
+  const systemEnv = {};
+  loadProjectEnv(directory, { mode: 'development', systemEnv, silent: true, force: true });
+  const calls = [];
+  loadClient(systemEnv, calls);
+  assert.equal(calls[0].url, 'https://local-test.supabase.co');
+  assert.equal(calls[0].key, 'sb_publishable_local_test');
+});
+
+test('configuração do ambiente de execução mantém prioridade sobre o arquivo público', (t) => {
+  const directory = configFixture(t);
+  const systemEnv = {
+    EXPO_PUBLIC_SUPABASE_URL: 'https://runtime-test.supabase.co',
+    EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_runtime_test',
+  };
+  loadProjectEnv(directory, { mode: 'production', systemEnv, silent: true, force: true });
+  const calls = [];
+  loadClient(systemEnv, calls);
+  assert.equal(calls[0].url, 'https://runtime-test.supabase.co');
+  assert.equal(calls[0].key, 'sb_publishable_runtime_test');
+});
+
+test('ausência de configuração continua bloqueando o cliente com mensagem explicativa', () => {
+  for (const env of [{}, { EXPO_PUBLIC_SUPABASE_URL: 'https://project.supabase.co' }]) {
+    const calls = [];
+    assert.throws(() => loadClient(env, calls), /Configure EXPO_PUBLIC_SUPABASE_URL/);
+    assert.equal(calls.length, 0);
+  }
+});
 
 function setup({ rows = [], error = null, user = { id: 'admin' }, authError = null, missing = '' } = {}) {
   const calls = [];
