@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,13 +8,14 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/Feather";
 import { SafeAreaView } from "react-native-safe-area-context";
 import NavBar from "../../components/navBar";
 import SimpleHeader from "../../components/header/simpleHeader";
+import useAuthSession from "../../hooks/useAuthSession";
+import { signInWithEmail } from "../../services/supabaseAuth";
 
 const COLORS = {
   primary: "#002D62",
@@ -30,32 +31,47 @@ export default function LoginScreen() {
   const [senha, setSenha] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [focado, setFocado] = useState(null); // "email" | "senha" | null
+  const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const sending = useRef(false);
+  const mounted = useRef(true);
+  const isFocused = useIsFocused();
+  const auth = useAuthSession();
+  const busy = loading || auth.loading;
+  const userId = auth.user?.id;
 
-  const validar = () => {
-    if (!email.trim() || !senha.trim()) {
-      Alert.alert("Atenção", "Preencha o e-mail e a senha.");
-      return false;
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  useEffect(() => {
+    // Tanto o login novo quanto a sessão restaurada passam por getUser no servidor.
+    if (isFocused && !busy && userId && !feedback && !auth.errorMessage) {
+      navigation.replace("AdminScreen");
     }
-    return true;
-  };
+  }, [isFocused, busy, userId, feedback, auth.errorMessage, navigation]);
 
-  const handleEntrar = () => {
-    if (!validar()) return;
-
-    // (Supabase): validar e-mail e senha aqui antes de entrar.
-    // Por enquanto só navega para a tela de administrador.
-    navigation.navigate("AdminScreen");
+  const handleEntrar = async () => {
+    if (sending.current || auth.loading) return;
+    sending.current = true;
+    setFeedback("");
+    setLoading(true);
+    try {
+      await signInWithEmail({ email, password: senha });
+      if (mounted.current) setSenha("");
+      // O evento do Auth atualiza o hook; só a sessão verificada libera a navegação.
+    } catch (error) {
+      if (mounted.current) setFeedback(error.message);
+    } finally {
+      sending.current = false;
+      if (mounted.current) setLoading(false);
+    }
   };
 
   const handleCadastrar = () => {
-    if (!validar()) return;
-    if (senha.length < 6) {
-      Alert.alert("Atenção", "A senha precisa ter pelo menos 6 caracteres.");
-      return;
-    }
-
-    // TODO (Supabase): criar a conta do administrador aqui.
-    Alert.alert("Cadastro", "Cadastro ainda não está conectado.");
+    // O banco atual não distingue usuário comum de administrador: não abrir signUp público.
+    setFeedback("Solicite sua conta administrativa à responsável pelo Supabase.");
   };
 
   return (
@@ -74,8 +90,8 @@ export default function LoginScreen() {
           <View style={styles.titleArea}>
             <Text style={styles.title}>LOGIN</Text>
             <View style={styles.titleLine} />
-            <Text style={styles.subtitle}>
-              Acesse a área administrativa
+            <Text style={styles.subtitle} accessibilityLiveRegion="polite" accessibilityRole={feedback || auth.errorMessage ? "alert" : undefined}>
+              {feedback || auth.errorMessage || "Acesse a área administrativa"}
             </Text>
           </View>
 
@@ -100,7 +116,8 @@ export default function LoginScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(value) => { setEmail(value); setFeedback(""); }}
+              editable={!busy}
               onFocus={() => setFocado("email")}
               onBlur={() => setFocado(null)}
             />
@@ -126,7 +143,8 @@ export default function LoginScreen() {
               secureTextEntry={!mostrarSenha}
               autoCapitalize="none"
               value={senha}
-              onChangeText={setSenha}
+              onChangeText={(value) => { setSenha(value); setFeedback(""); }}
+              editable={!busy}
               onFocus={() => setFocado("senha")}
               onBlur={() => setFocado(null)}
             />
@@ -145,14 +163,22 @@ export default function LoginScreen() {
               style={[styles.button, styles.buttonPrimary]}
               onPress={handleEntrar}
               activeOpacity={0.85}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Entrar"
+              accessibilityState={{ disabled: busy, busy }}
             >
-              <Text style={styles.buttonText}>ENTRAR</Text>
+              <Text style={styles.buttonText}>{busy ? "ENTRANDO..." : "ENTRAR"}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.button, styles.buttonSecondary]}
               onPress={handleCadastrar}
               activeOpacity={0.85}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="Cadastrar"
+              accessibilityState={{ disabled: busy }}
             >
               <Text style={styles.buttonText}>CADASTRAR</Text>
             </TouchableOpacity>

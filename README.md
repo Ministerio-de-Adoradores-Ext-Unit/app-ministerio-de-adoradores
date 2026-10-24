@@ -32,6 +32,23 @@ fora do Git. Após mudar de configuração, reinicie o Expo e recarregue o aplic
 O projeto no Supabase precisa estar ativo. Se estiver pausado, retome-o no painel;
 nenhuma configuração local consegue carregar dados de um banco pausado.
 
+## Login administrativo
+
+O caminho Perfil → Login autentica uma conta já existente no Supabase Auth.
+O aplicativo verifica a sessão antes de abrir as rotas administrativas e volta ao
+login quando ela deixa de ser válida. Não é necessário digitar a senha novamente
+para reutilizar uma sessão válida salva pelo SDK.
+
+A primeira conta deve ser criada pela responsável pelo Supabase no painel de
+Authentication. O botão Cadastrar apenas orienta solicitar esse acesso; não cria
+contas nem concede privilégios pelo aplicativo.
+
+**Antes do uso público:** nas regras verificadas em 24/10/2026, o banco permite
+operações administrativas a qualquer usuário autenticado e o Auth aceita cadastro
+público. A responsável deve revisar essa autorização e o cadastro no Supabase.
+Ocultar o botão de cadastro não restringe a API. Esta integração verifica a sessão,
+mas não altera RLS, papéis, configurações de autenticação ou dados do banco.
+
 ## Testes
 
 ```sh

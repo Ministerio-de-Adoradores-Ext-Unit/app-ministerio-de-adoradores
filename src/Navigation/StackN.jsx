@@ -12,8 +12,14 @@ import PrayerRequestsADM from "../Screens/PrayerRequestsADM/index";
 import ParticipacoesADM from "../Screens/ParticipacoesADM/index";
 import EventsAndMedia from "../Screens/EventsAndMedia/index";
 import ManageEventsADM from "../Screens/ManageEventsADM";
+import withAuthenticatedScreen from "./withAuthenticatedScreen";
 
 const Stack = createNativeStackNavigator();
+const AuthenticatedAdmin = withAuthenticatedScreen(AdminScreen);
+const AuthenticatedMedia = withAuthenticatedScreen(MidiaScreen);
+const AuthenticatedPrayers = withAuthenticatedScreen(PrayerRequestsADM);
+const AuthenticatedParticipations = withAuthenticatedScreen(ParticipacoesADM);
+const AuthenticatedEvents = withAuthenticatedScreen(ManageEventsADM);
 
 const StackN = () => {
   return (
@@ -26,12 +32,12 @@ const StackN = () => {
       <Stack.Screen name="Home" component={Home} />
       <Stack.Screen name="DonationsRequests" component={DonationsRequests} />
       <Stack.Screen name="SocialMedia" component={SocialMedia} />
-      <Stack.Screen name="MidiaScreen" component={MidiaScreen} />
+      <Stack.Screen name="MidiaScreen" component={AuthenticatedMedia} />
       <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="AdminScreen" component={AdminScreen} />
-      <Stack.Screen name="PrayerRequestsADM" component={PrayerRequestsADM} />
-      <Stack.Screen name="ParticipacoesADM" component={ParticipacoesADM} />
-      <Stack.Screen name="ManageEventsADM" component={ManageEventsADM} />
+      <Stack.Screen name="AdminScreen" component={AuthenticatedAdmin} />
+      <Stack.Screen name="PrayerRequestsADM" component={AuthenticatedPrayers} />
+      <Stack.Screen name="ParticipacoesADM" component={AuthenticatedParticipations} />
+      <Stack.Screen name="ManageEventsADM" component={AuthenticatedEvents} />
       <Stack.Screen name="EventsAndMedia" component={EventsAndMedia} />
     </Stack.Navigator>
   );
