@@ -7,16 +7,21 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
+  Modal,
 } from "react-native";
 import NavBar from "../../components/navBar";
 import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/Feather";
 import { listMediaCategories } from "../../services/supabaseData";
 import useScreenData from "../../hooks/useScreenData";
+import PopUp from "./PopUp";
 
 export default function MidiaScreen() {
   const navigation = useNavigation();
   const [searchText, setSearchText] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [mediaByCategory, setMediaByCategory] = useState({});
   const categoriesState = useScreenData(listMediaCategories);
   const categories = categoriesState.data;
   const { loading, errorMessage } = categoriesState;
@@ -25,7 +30,7 @@ export default function MidiaScreen() {
     const query = searchText.trim().toLowerCase();
     if (!query) return categories;
     return categories.filter((item) =>
-      item.categoria.toLowerCase().includes(query)
+      item.categoria.toLowerCase().includes(query),
     );
   }, [categories, searchText]);
 
@@ -43,9 +48,19 @@ export default function MidiaScreen() {
         <Text style={styles.title}>GERENCIAR MÍDIAS</Text>
 
         {/* Adicionar mídias */}
-        <TouchableOpacity style={styles.uploadBox}>
+        <TouchableOpacity
+          style={styles.uploadBox}
+          onPress={() => setShowCategoryPicker(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Adicionar mídias a uma categoria"
+        >
           <Text style={styles.uploadText}>Adicionar mídias</Text>
-          <Icon name="upload" size={32} color="#002D62" style={{ marginTop: 10 }} />
+          <Icon
+            name="upload"
+            size={32}
+            color="#002D62"
+            style={{ marginTop: 10 }}
+          />
         </TouchableOpacity>
 
         {/* Postagens */}
@@ -53,7 +68,12 @@ export default function MidiaScreen() {
 
         {/* Barra de pesquisa */}
         <View style={styles.searchContainer}>
-          <Icon name="search" size={20} color="#002D62" style={{ marginHorizontal: 8 }} />
+          <Icon
+            name="search"
+            size={20}
+            color="#002D62"
+            style={{ marginHorizontal: 8 }}
+          />
           <TextInput
             style={styles.searchInput}
             placeholder="Pesquisar..."
@@ -61,26 +81,97 @@ export default function MidiaScreen() {
             value={searchText}
             onChangeText={setSearchText}
           />
-          <Icon name="filter" size={20} color="#002D62" style={{ marginHorizontal: 8 }} />
+          <Icon
+            name="filter"
+            size={20}
+            color="#002D62"
+            style={{ marginHorizontal: 8 }}
+          />
         </View>
 
         {/* Botões de postagens */}
         <View style={styles.postsContainer}>
           {filteredCategories.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.postButton}
-              >
-                <Text style={styles.postButtonText}>{item.categoria}</Text>
-              </TouchableOpacity>
+            <TouchableOpacity
+              key={item.id}
+              style={styles.postButton}
+              onPress={() => setSelectedCategory(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`Gerenciar mídias: ${item.categoria}`}
+            >
+              <Text style={styles.postButtonText}>{item.categoria}</Text>
+            </TouchableOpacity>
           ))}
-          {loading && <Text style={styles.uploadText}>Carregando categorias...</Text>}
-          {!loading && !!errorMessage && <Text style={styles.uploadText}>{errorMessage}</Text>}
+          {loading && (
+            <Text style={styles.uploadText}>Carregando categorias...</Text>
+          )}
+          {!loading && !!errorMessage && (
+            <Text style={styles.uploadText}>{errorMessage}</Text>
+          )}
           {!loading && !errorMessage && categories.length === 0 && (
             <Text style={styles.uploadText}>Nenhuma categoria cadastrada.</Text>
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showCategoryPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCategoryPicker(false)}
+      >
+        <View style={styles.pickerBackdrop}>
+          <View style={styles.pickerCard}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>ESCOLHER CATEGORIA</Text>
+              <TouchableOpacity
+                onPress={() => setShowCategoryPicker(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Fechar seleção de categoria"
+              >
+                <Icon name="x" size={22} color="#002D62" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.categoryOptions}>
+              {categories.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.categoryOption}
+                  onPress={() => {
+                    setShowCategoryPicker(false);
+                    setSelectedCategory(item);
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.categoryOptionText}>
+                    {item.categoria}
+                  </Text>
+                  <Icon name="chevron-right" size={19} color="#002D62" />
+                </TouchableOpacity>
+              ))}
+              {!loading && categories.length === 0 && (
+                <Text style={styles.noCategoriesText}>
+                  {errorMessage || "Nenhuma categoria disponível."}
+                </Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <PopUp
+        visible={selectedCategory !== null}
+        category={selectedCategory}
+        photos={mediaByCategory[selectedCategory?.id] || []}
+        onPhotosChange={(photos) => {
+          if (!selectedCategory) return;
+          setMediaByCategory((current) => ({
+            ...current,
+            [selectedCategory.id]: photos,
+          }));
+        }}
+        onClose={() => setSelectedCategory(null)}
+      />
 
       {/* NavBar */}
       <NavBar />
@@ -163,5 +254,52 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  pickerBackdrop: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  pickerCard: {
+    maxHeight: "75%",
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#fffafa",
+  },
+  pickerHeader: {
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#a8b5c2",
+  },
+  pickerTitle: {
+    color: "#002D62",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  categoryOptions: {
+    marginTop: 8,
+  },
+  categoryOption: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e5e9",
+  },
+  categoryOptionText: {
+    color: "#0B233E",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  noCategoriesText: {
+    paddingVertical: 18,
+    color: "#4d6174",
+    textAlign: "center",
   },
 });

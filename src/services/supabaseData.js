@@ -50,7 +50,12 @@ export async function createEventRegistration({
   telefone,
   email,
 }) {
-  if (!eventId || !nomeCompleto?.trim() || !telefone?.trim() || !email?.trim()) {
+  if (
+    !eventId ||
+    !nomeCompleto?.trim() ||
+    !telefone?.trim() ||
+    !email?.trim()
+  ) {
     throw new Error("Preencha os dados e selecione um evento.");
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
@@ -74,7 +79,7 @@ export async function listEventRegistrations() {
   const { data, error } = await supabase
     .from("event_registrations")
     .select(
-      "id, event_id, nome_completo, telefone, email, created_at, events(titulo, data, horario, local)"
+      "id, event_id, nome_completo, telefone, email, created_at, events(titulo, data, horario, local)",
     )
     .order("created_at", { ascending: false });
 
@@ -95,7 +100,9 @@ export async function listMediaCategories() {
 async function requireSession() {
   const { data, error } = await supabase.auth.getUser();
   if (error?.name === "AuthSessionMissingError" || (!error && !data?.user)) {
-    throw new Error("Entre com a conta administrativa para consultar esta lista.");
+    throw new Error(
+      "Entre com a conta administrativa para consultar esta lista.",
+    );
   }
   throwIfError(error);
 }
@@ -113,7 +120,9 @@ async function resolvePrivateImageUrl(value, bucket) {
   if (/^https?:\/\//i.test(path)) {
     const url = new URL(path);
     const project = new URL(process.env.EXPO_PUBLIC_SUPABASE_URL);
-    const prefix = url.pathname.match(/^\/storage\/v1\/object\/(?:sign|public|authenticated)\/([^/]+)\//);
+    const prefix = url.pathname.match(
+      /^\/storage\/v1\/object\/(?:sign|public|authenticated)\/([^/]+)\//,
+    );
     if (url.origin !== project.origin || prefix?.[1] !== bucket) return path;
     // Renova inclusive URLs assinadas antigas salvas no banco.
     path = decodeURIComponent(url.pathname.slice(prefix[0].length));
@@ -138,7 +147,7 @@ async function withImageUrls(items, bucket) {
         // Um arquivo indisponível não oculta os demais registros da tela.
         return { ...item, imageUrl: null };
       }
-    })
+    }),
   );
 }
 
