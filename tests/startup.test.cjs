@@ -96,3 +96,42 @@ test('erro nas fontes libera a navegação e encerra o splash, sem bloquear a ab
   assert.equal(app.render([false, null]), null);
   await assertNavigationReady(app, app.render([false, new Error('Falha simulada ao carregar a fonte')]));
 });
+
+test('abertura é substituída pela apresentação e não permanece no histórico do botão voltar', () => {
+  const filename = path.join(__dirname, '..', 'src/Screens/Splash/index.jsx');
+  const { code } = babel.transformSync(fs.readFileSync(filename, 'utf8'), {
+    filename, configFile: false, babelrc: false,
+    plugins: [
+      ['@babel/plugin-transform-react-jsx', { runtime: 'automatic' }],
+      '@babel/plugin-transform-modules-commonjs',
+    ],
+  });
+  const history = ['Splash'];
+  const navigation = {
+    navigate: route => history.push(route),
+    replace: route => { history[history.length - 1] = route; },
+  };
+  let advance;
+  const exports = {};
+  const mocks = {
+    react: { ...React, useEffect: effect => effect() },
+    'react/jsx-runtime': require('react/jsx-runtime'),
+    'react-native': { Image: 'Image', StyleSheet: { create: styles => styles } },
+    '@react-navigation/native': { useNavigation: () => navigation },
+    'expo-linear-gradient': { LinearGradient: 'LinearGradient' },
+    '../../../assets/img/logoImagem.png': 'logo',
+  };
+  vm.runInNewContext(code, {
+    exports,
+    require(name) {
+      assert.ok(name in mocks, `Dependência não simulada: ${name}`);
+      return mocks[name];
+    },
+    setTimeout(callback) { advance = callback; return 1; },
+    clearTimeout() {},
+  }, { filename });
+  exports.default();
+  assert.deepEqual(history, ['Splash']);
+  advance();
+  assert.deepEqual(history, ['Onboard'], 'Voltar não pode levar a uma abertura cujo temporizador já terminou.');
+});
