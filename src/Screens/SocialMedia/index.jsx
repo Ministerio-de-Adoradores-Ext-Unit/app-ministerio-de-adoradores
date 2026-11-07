@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Alert, View, ScrollView, Text } from "react-native";
+import { View, ScrollView, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import SearchHeader from "../../components/header/searchHeader";
 import TitleComponent from "../../components/titles";
@@ -13,6 +13,7 @@ import {
   listEvents,
 } from "../../services/supabaseData";
 import useScreenData from "../../hooks/useScreenData";
+import showMessage from "../../utils/showMessage";
 
 const SocialMedia = () => {
   const [nome, setNome] = useState("");
@@ -27,7 +28,7 @@ const SocialMedia = () => {
   const handleSubmit = async () => {
     if (sending.current) return;
     if (eventsLoading || errorMessage || !selectedEventId) {
-      Alert.alert("Selecione um evento", errorMessage
+      showMessage("Selecione um evento", errorMessage
         ? "Não foi possível carregar os eventos. Volte à tela para tentar novamente."
         : "Aguarde o carregamento e selecione um evento disponível.");
       return;
@@ -45,9 +46,9 @@ const SocialMedia = () => {
       setTelefone("");
       setEmail("");
       setEventId("");
-      Alert.alert("Inscrição realizada", "Sua inscrição foi enviada com sucesso.");
+      showMessage("Inscrição realizada", "Sua inscrição foi enviada com sucesso.");
     } catch (error) {
-      Alert.alert("Não foi possível realizar a inscrição", error.message);
+      showMessage("Não foi possível realizar a inscrição", error.message);
     } finally {
       setLoading(false);
       sending.current = false;

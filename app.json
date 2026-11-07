@@ -6,14 +6,12 @@
     "orientation": "portrait",
     "icon": "./assets/img/logoImagem.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {},
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/img/Imagem.png",
+        "foregroundImage": "./assets/img/logoImagem.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.anonymous.appextensaouniversitaria"
@@ -29,7 +27,11 @@
           "photosPermission": "Permita que o app acesse suas fotos.",
           "savePhotosPermission": "Permita que o app salve fotos na galeria."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-asset",
+      "expo-splash-screen",
+      "expo-status-bar"
     ]
   }
 }
