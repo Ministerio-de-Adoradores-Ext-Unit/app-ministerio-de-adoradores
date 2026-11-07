@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Alert, ScrollView, View, Image, Text } from "react-native";
+import { ScrollView, View, Image, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import NavBar from "../../components/navBar";
 import SearchHeader from "../../components/header/searchHeader";
@@ -8,6 +8,7 @@ import TitleComponent from "../../components/titles";
 import ButtonForm from "../../components/button/buttonsForm";
 import styles from "./style";
 import { createPrayerRequest } from "../../services/supabaseData";
+import showMessage from "../../utils/showMessage";
 
 const DonationsRequests = () => {
   const [nome, setNome] = useState("");
@@ -23,9 +24,9 @@ const DonationsRequests = () => {
       await createPrayerRequest({ nome, pedido });
       setNome("");
       setPedido("");
-      Alert.alert("Pedido enviado", "Seu pedido de oração foi enviado com sucesso.");
+      showMessage("Pedido enviado", "Seu pedido de oração foi enviado com sucesso.");
     } catch (error) {
-      Alert.alert("Não foi possível enviar", error.message);
+      showMessage("Não foi possível enviar", error.message);
     } finally {
       setLoading(false);
       sending.current = false;

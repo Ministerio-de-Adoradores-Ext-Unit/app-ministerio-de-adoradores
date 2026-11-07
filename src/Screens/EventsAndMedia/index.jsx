@@ -1,6 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
 import {
-  Alert,
   FlatList,
   Image,
   Modal,
@@ -19,6 +18,7 @@ import SearchHeader from "../../components/header/searchHeader";
 import NavBar from "../../components/navBar";
 import TitleComponent from "../../components/titles";
 import useScreenData from "../../hooks/useScreenData";
+import showMessage from "../../utils/showMessage";
 import {
   listEventsWithImages,
   listMediaByCategory,
@@ -77,7 +77,7 @@ const EventsAndMedia = () => {
 
       const permission = await MediaLibrary.requestPermissionsAsync(true);
       if (!permission.granted) {
-        Alert.alert(
+        showMessage(
           "Permissão necessária",
           "Permita o acesso às fotos para salvar esta imagem.",
         );
@@ -85,13 +85,13 @@ const EventsAndMedia = () => {
       }
 
       const asset = await Asset.fromURI(imageUrl).downloadAsync();
-      await MediaLibrary.saveToLibraryAsync(asset.localUri || asset.uri);
-      Alert.alert(
+      await MediaLibrary.Asset.create(asset.localUri || asset.uri);
+      showMessage(
         "Foto salva",
         "A imagem foi salva na galeria do dispositivo.",
       );
     } catch {
-      Alert.alert("Não foi possível salvar", "Tente novamente em instantes.");
+      showMessage("Não foi possível salvar", "Tente novamente em instantes.");
     } finally {
       savingPhoto.current = false;
     }

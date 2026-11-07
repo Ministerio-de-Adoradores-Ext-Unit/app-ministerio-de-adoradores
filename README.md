@@ -4,6 +4,10 @@ Aplicativo em Expo/React Native com integração ao Supabase.
 
 ## Executar
 
+Testado com Node.js 24.15.0. Para o SDK 58, use Node.js 24 a partir de 24.3
+ou Node.js 22 a partir de 22.13; versões antigas usadas com o SDK 54 podem
+precisar de atualização. Atualize também o Expo Go do celular para SDK 58.
+
 Na raiz do projeto:
 
 ```sh
@@ -11,8 +15,26 @@ npm ci
 npx expo start --clear
 ```
 
-Abra pelo Expo Go compatível com o SDK 54 ou use `npm run web` para o navegador.
+Abra pelo Expo Go compatível com o SDK 58 ou use `npm run web` para o navegador.
 O `--clear` evita reaproveitar o código antigo após atualizar o projeto.
+
+O Expo Go é instalado e atualizado no celular pela loja. O pacote `expo` deste
+projeto define o SDK; as duas versões precisam ser compatíveis. No Android, a
+página oficial da versão atual está em https://expo.dev/go?sdkVersion=58&platform=android&device=true.
+
+Se a rede local impedir o acesso ao computador, use:
+
+```sh
+npm run start:go
+```
+
+Esse comando usa o túnel ngrok explicitamente. No SDK 58, o túnel padrão exige
+login em uma conta Expo. Mantenha o terminal aberto e escaneie o QR da execução
+atual; um QR antigo deixa de funcionar quando o servidor ou o túnel é encerrado.
+
+As pastas nativas versionadas não foram regeneradas nesta atualização para Expo Go.
+Para produzir um APK próprio, é necessário migrar e compilar o projeto Android
+separadamente, preservando as configurações nativas da equipe.
 
 ## Configuração compartilhada
 
