@@ -20,7 +20,7 @@ export default function AdminScreen() {
     { label: "PARTICIPE", route: "ParticipacoesADM" },
     { label: "PEDIDOS DE ORAÇÃO", route: "PrayerRequestsADM" },
     { label: "EVENTOS", route: "ManageEventsADM" },
-    { label: "DOAÇÕES", route: "DonationsRequests" },
+    { label: "DOAÇÕES", route: "DonationADM" },
     { label: "CONFIGURAÇÕES", route: "SettingsScreen" },
   ];
 

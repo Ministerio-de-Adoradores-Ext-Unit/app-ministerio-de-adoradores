@@ -30,8 +30,7 @@
       ],
       "@react-native-community/datetimepicker",
       "expo-asset",
-      "expo-splash-screen",
-      "expo-status-bar"
+      "expo-splash-screen"
     ]
   }
 }

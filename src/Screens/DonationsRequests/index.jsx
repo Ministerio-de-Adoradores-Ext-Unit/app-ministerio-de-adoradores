@@ -9,6 +9,10 @@ import ButtonForm from "../../components/button/buttonsForm";
 import styles from "./style";
 import { createPrayerRequest } from "../../services/supabaseData";
 import showMessage from "../../utils/showMessage";
+import {
+  donationCampaigns,
+  getDonationCampaignSource,
+} from "../DonationADM/data";
 
 const DonationsRequests = () => {
   const [nome, setNome] = useState("");
@@ -24,7 +28,10 @@ const DonationsRequests = () => {
       await createPrayerRequest({ nome, pedido });
       setNome("");
       setPedido("");
-      showMessage("Pedido enviado", "Seu pedido de oração foi enviado com sucesso.");
+      showMessage(
+        "Pedido enviado",
+        "Seu pedido de oração foi enviado com sucesso.",
+      );
     } catch (error) {
       showMessage("Não foi possível enviar", error.message);
     } finally {
@@ -44,22 +51,19 @@ const DonationsRequests = () => {
       >
         <TitleComponent title="DOAÇÕES" />
 
-        <View style={styles.banner}>
-          <Image
-            source={require("../../../assets/img/banner_doacao_1.png")}
-            style={styles.image}
-          />
-        </View>
-
-        <View style={styles.banner}>
-          <Image
-            source={require("../../../assets/img/banner_doacao_2.png")}
-            style={styles.image}
-          />
-        </View>
+        {donationCampaigns.map((campaign) => (
+          <View key={campaign.id} style={styles.banner}>
+            <Image
+              source={getDonationCampaignSource(campaign)}
+              style={styles.image}
+            />
+          </View>
+        ))}
 
         <View style={styles.formSection}>
-          <Text style={[styles.title, { fontSize: 26 }]}>PEDIDOS DE ORAÇÃO</Text>
+          <Text style={[styles.title, { fontSize: 26 }]}>
+            PEDIDOS DE ORAÇÃO
+          </Text>
 
           <InputComponent
             label="NOME COMPLETO: "

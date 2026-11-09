@@ -12,6 +12,8 @@ import PrayerRequestsADM from "../Screens/PrayerRequestsADM/index";
 import ParticipacoesADM from "../Screens/ParticipacoesADM/index";
 import EventsAndMedia from "../Screens/EventsAndMedia/index";
 import ManageEventsADM from "../Screens/ManageEventsADM";
+import DonationADM from "../Screens/DonationADM";
+import SettingsScreen from "../Screens/SettingsScreen";
 import withAuthenticatedScreen from "./withAuthenticatedScreen";
 
 const Stack = createNativeStackNavigator();
@@ -36,8 +38,19 @@ const StackN = () => {
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="AdminScreen" component={AuthenticatedAdmin} />
       <Stack.Screen name="PrayerRequestsADM" component={AuthenticatedPrayers} />
-      <Stack.Screen name="ParticipacoesADM" component={AuthenticatedParticipations} />
+      <Stack.Screen
+        name="ParticipacoesADM"
+        component={AuthenticatedParticipations}
+      />
       <Stack.Screen name="ManageEventsADM" component={AuthenticatedEvents} />
+      <Stack.Screen
+        name="DonationADM"
+        component={withAuthenticatedScreen(DonationADM)}
+      />
+      <Stack.Screen
+        name="SettingsScreen"
+        component={withAuthenticatedScreen(SettingsScreen)}
+      />
       <Stack.Screen name="EventsAndMedia" component={EventsAndMedia} />
     </Stack.Navigator>
   );
