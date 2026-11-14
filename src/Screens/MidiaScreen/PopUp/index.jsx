@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
   FlatList,
   Image,
   Modal,
@@ -11,21 +10,47 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import Feather from "react-native-vector-icons/Feather";
 import styles from "./style";
+import useScreenData from "../../../hooks/useScreenData";
+import { listMediaByCategory } from "../../../services/supabaseData";
+import { uploadMedia, deleteMedia } from "../../../services/supabaseMedia";
+import showMessage from "../../../utils/showMessage";
+import confirmAction from "../../../utils/confirmAction";
 
 export default function PopUp({
   visible,
   category,
-  photos = [],
-  onPhotosChange,
   onClose,
 }) {
   const [pendingPhotos, setPendingPhotos] = useState([]);
   const [selectedKeys, setSelectedKeys] = useState([]);
+  const [working, setWorking] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const sending = useRef(false);
+  const mounted = useRef(true);
+  const categoryId = category?.id;
+  const currentCategory = useRef(categoryId);
+  currentCategory.current = visible ? categoryId : null;
+  const loadPhotos = useCallback(
+    () => listMediaByCategory(visible ? categoryId : null),
+    [categoryId, visible, refreshKey],
+  );
+  const media = useScreenData(loadPhotos, {
+    authenticated: true,
+    refreshMs: visible ? 50 * 60 * 1000 : 0,
+  });
+  const photos = media.data.map((photo) => ({ ...photo, uri: photo.imageUrl }));
+  const busy = working || media.loading;
+  const isCurrent = (id) => mounted.current && currentCategory.current === id;
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   useEffect(() => {
     setPendingPhotos([]);
     setSelectedKeys([]);
-  }, [category?.id, visible]);
+  }, [categoryId, visible]);
 
   const finishClose = () => {
     setPendingPhotos([]);
@@ -33,69 +58,96 @@ export default function PopUp({
     onClose();
   };
 
-  const handleClose = () => {
+  const handleClose = async () => {
+    if (sending.current) return;
+    const id = categoryId;
     if (pendingPhotos.length) {
-      Alert.alert(
+      const discard = await confirmAction(
         "Descartar imagens?",
         "As imagens ainda não salvas serão removidas desta seleção.",
-        [
-          { text: "Continuar editando", style: "cancel" },
-          { text: "Descartar", style: "destructive", onPress: finishClose },
-        ],
+        "Descartar",
       );
-      return;
+      if (!discard) return;
     }
-    finishClose();
+    if (isCurrent(id)) finishClose();
   };
 
   const handlePickImages = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(
-        "Permissão necessária",
-        "Permita o acesso às fotos para adicionar mídias.",
-      );
-      return;
+    if (sending.current || busy) return;
+    const id = categoryId;
+    sending.current = true;
+    setWorking(true);
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        showMessage("Permissão necessária", "Permita o acesso às fotos para adicionar mídias.");
+        return;
+      }
+      if (!isCurrent(id)) return;
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        selectionLimit: 0,
+        quality: 0.9,
+        base64: true,
+      });
+      if (result.canceled || !isCurrent(id)) return;
+      const added = result.assets.map((asset, index) => {
+        const selectionKey = `pending-${Date.now()}-${index}`;
+        return { ...asset, key: selectionKey, selectionKey, kind: "pending" };
+      });
+      setPendingPhotos((current) => [...current, ...added]);
+    } catch {
+      if (isCurrent(id)) showMessage("Não foi possível selecionar", "Tente abrir suas fotos novamente.");
+    } finally {
+      sending.current = false;
+      if (mounted.current) setWorking(false);
     }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsMultipleSelection: true,
-      selectionLimit: 0,
-      quality: 0.9,
-    });
-
-    if (result.canceled) return;
-    const added = result.assets.map((asset, index) => {
-      const selectionKey = `pending-${Date.now()}-${index}`;
-      return { ...asset, key: selectionKey, selectionKey, kind: "pending" };
-    });
-    setPendingPhotos((current) => [...current, ...added]);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (sending.current || busy) return;
     if (!pendingPhotos.length) {
-      Alert.alert(
+      showMessage(
         "Nenhuma imagem nova",
         "Toque no botão + para escolher imagens.",
       );
       return;
     }
 
-    const savedPhotos = pendingPhotos.map((photo) => ({
-      id: photo.selectionKey,
-      uri: photo.uri,
-    }));
-    onPhotosChange([...photos, ...savedPhotos]);
-    setPendingPhotos([]);
-    setSelectedKeys([]);
-    Alert.alert(
-      "Mídias salvas",
-      "As imagens foram adicionadas a esta categoria.",
-    );
+    const id = categoryId;
+    const saved = [];
+    let failure = "";
+    sending.current = true;
+    setWorking(true);
+    try {
+      for (const photo of pendingPhotos) {
+        if (!isCurrent(id)) break;
+        try {
+          await uploadMedia({ categoryId: id, asset: photo });
+          saved.push(photo.selectionKey);
+        } catch (error) {
+          failure = error.message;
+          break;
+        }
+      }
+      if (!isCurrent(id)) return;
+      setPendingPhotos((current) => current.filter((photo) => !saved.includes(photo.selectionKey)));
+      setSelectedKeys((current) => current.filter((key) => !saved.includes(key)));
+      if (saved.length) setRefreshKey((key) => key + 1);
+      if (failure) {
+        showMessage("Não foi possível salvar todas as mídias", `${saved.length} imagem(ns) salva(s). ${failure} As demais continuam selecionadas para tentar novamente.`);
+      } else {
+        showMessage("Mídias salvas", "As imagens foram adicionadas a esta categoria no Supabase.");
+      }
+    } finally {
+      sending.current = false;
+      if (mounted.current) setWorking(false);
+    }
   };
 
   const toggleSelection = (key) => {
+    if (busy) return;
     setSelectedKeys((current) =>
       current.includes(key)
         ? current.filter((item) => item !== key)
@@ -103,28 +155,41 @@ export default function PopUp({
     );
   };
 
-  const handleDelete = () => {
-    if (!selectedKeys.length) return;
-    Alert.alert(
-      "Apagar imagens selecionadas?",
-      `${selectedKeys.length} imagem(ns) serão removidas desta categoria.`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Apagar", style: "destructive", onPress: confirmDelete },
-      ],
-    );
-  };
-
-  const confirmDelete = () => {
-    const remainingPhotos = photos.filter(
-      (photo) => !selectedKeys.includes(`saved-${photo.id}`),
-    );
-    const remainingPending = pendingPhotos.filter(
-      (photo) => !selectedKeys.includes(photo.selectionKey),
-    );
-    onPhotosChange(remainingPhotos);
-    setPendingPhotos(remainingPending);
-    setSelectedKeys([]);
+  const handleDelete = async () => {
+    if (sending.current || busy || !selectedKeys.length) return;
+    const id = categoryId;
+    sending.current = true;
+    setWorking(true);
+    const removed = selectedKeys.filter((key) => key.startsWith("pending-"));
+    let failure = "";
+    let deletedCount = 0;
+    try {
+      const confirmed = await confirmAction(
+        "Apagar imagens selecionadas?",
+        `${selectedKeys.length} imagem(ns) serão removidas desta categoria.`,
+        "Apagar",
+      );
+      if (!confirmed || !isCurrent(id)) return;
+      for (const photo of photos.filter((item) => selectedKeys.includes(`saved-${item.id}`))) {
+        if (!isCurrent(id)) break;
+        try {
+          await deleteMedia({ categoryId: id, mediaId: photo.id });
+          removed.push(`saved-${photo.id}`);
+          deletedCount += 1;
+        } catch (error) {
+          failure = error.message;
+          break;
+        }
+      }
+      if (!isCurrent(id)) return;
+      setPendingPhotos((current) => current.filter((photo) => !removed.includes(photo.selectionKey)));
+      setSelectedKeys((current) => current.filter((key) => !removed.includes(key)));
+      if (deletedCount) setRefreshKey((key) => key + 1);
+      if (failure) showMessage("Não foi possível apagar todas as mídias", failure);
+    } finally {
+      sending.current = false;
+      if (mounted.current) setWorking(false);
+    }
   };
 
   const gridItems = [
@@ -153,6 +218,7 @@ export default function PopUp({
             </Text>
             <TouchableOpacity
               onPress={handleClose}
+              disabled={working}
               style={styles.closeButton}
               accessibilityRole="button"
               accessibilityLabel="Fechar mídias"
@@ -161,6 +227,8 @@ export default function PopUp({
             </TouchableOpacity>
           </View>
 
+          {media.loading && <Text style={styles.statusText}>Carregando mídias...</Text>}
+          {!!media.errorMessage && <Text style={styles.errorText}>Não foi possível carregar as mídias. Reabra a categoria para tentar novamente.</Text>}
           <FlatList
             data={gridItems}
             numColumns={3}
@@ -174,6 +242,7 @@ export default function PopUp({
                   <TouchableOpacity
                     style={styles.imageTile}
                     onPress={handlePickImages}
+                    disabled={busy}
                     accessibilityRole="button"
                     accessibilityLabel="Adicionar imagens"
                   >
@@ -187,6 +256,7 @@ export default function PopUp({
                 <TouchableOpacity
                   style={[styles.imageTile, isSelected && styles.selectedTile]}
                   onPress={() => toggleSelection(item.selectionKey)}
+                  disabled={busy}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: isSelected }}
                   accessibilityLabel={
@@ -195,7 +265,7 @@ export default function PopUp({
                       : "Selecionar imagem para apagar"
                   }
                 >
-                  <Image source={{ uri: item.uri }} style={styles.image} />
+                  {item.uri ? <Image source={{ uri: item.uri }} style={styles.image} /> : <Text style={styles.saveText}>Imagem indisponível</Text>}
                   {isSelected && (
                     <View style={styles.selectionMark}>
                       <Feather name="check" size={22} color="#fff" />
@@ -216,17 +286,20 @@ export default function PopUp({
             <TouchableOpacity
               style={styles.saveButton}
               onPress={handleSave}
+              disabled={busy}
               accessibilityRole="button"
+              accessibilityLabel="Salvar mídias"
+              accessibilityState={{ disabled: busy, busy: working }}
             >
-              <Text style={styles.saveText}>SALVAR</Text>
+              <Text style={styles.saveText}>{working ? "AGUARDE..." : "SALVAR"}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.deleteButton,
-                !selectedKeys.length && styles.disabledButton,
+                (!selectedKeys.length || busy) && styles.disabledButton,
               ]}
               onPress={handleDelete}
-              disabled={!selectedKeys.length}
+              disabled={!selectedKeys.length || busy}
               accessibilityRole="button"
               accessibilityLabel="Apagar imagens selecionadas"
             >

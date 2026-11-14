@@ -3,12 +3,16 @@ import { View, TextInput, StyleSheet, TouchableOpacity } from "react-native";
 import Icon from "react-native-vector-icons/Feather";
 import { useNavigation } from "@react-navigation/native";
 
-const SearchBar = () => {
+const SearchBar = ({ value, onChangeText } = {}) => {
   const navigation = useNavigation();
   const onPressLeft = () => {
     navigation.navigate("Home");
   };
   const [query, setQuery] = useState("");
+  const handleChange = (text) => {
+    setQuery(text);
+    if (typeof onChangeText === "function") onChangeText(text);
+  };
 
   return (
     <View style={styles.container}>
@@ -20,8 +24,8 @@ const SearchBar = () => {
         <TextInput
           style={styles.input}
           placeholder="Search..."
-          value={query}
-          onChangeText={setQuery}
+          value={value === undefined ? query : value}
+          onChangeText={handleChange}
           placeholderTextColor="#222"
         />
       </View>

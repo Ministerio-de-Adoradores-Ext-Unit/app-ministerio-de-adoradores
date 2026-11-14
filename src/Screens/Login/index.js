@@ -69,11 +69,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleCadastrar = () => {
-    // O banco atual não distingue usuário comum de administrador: não abrir signUp público.
-    setFeedback("Solicite sua conta administrativa à responsável pelo Supabase.");
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -157,7 +152,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Botões */}
+          {/* Entrar */}
           <View style={styles.buttons}>
             <TouchableOpacity
               style={[styles.button, styles.buttonPrimary]}
@@ -169,18 +164,6 @@ export default function LoginScreen() {
               accessibilityState={{ disabled: busy, busy }}
             >
               <Text style={styles.buttonText}>{busy ? "ENTRANDO..." : "ENTRAR"}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, styles.buttonSecondary]}
-              onPress={handleCadastrar}
-              activeOpacity={0.85}
-              disabled={busy}
-              accessibilityRole="button"
-              accessibilityLabel="Cadastrar"
-              accessibilityState={{ disabled: busy }}
-            >
-              <Text style={styles.buttonText}>CADASTRAR</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -271,9 +254,6 @@ const styles = StyleSheet.create({
   },
   buttonPrimary: {
     backgroundColor: COLORS.primary,
-  },
-  buttonSecondary: {
-    backgroundColor: COLORS.secondary,
   },
   buttonText: {
     color: COLORS.white,

@@ -61,15 +61,61 @@ O aplicativo verifica a sessão antes de abrir as rotas administrativas e volta 
 login quando ela deixa de ser válida. Não é necessário digitar a senha novamente
 para reutilizar uma sessão válida salva pelo SDK.
 
-A primeira conta deve ser criada pela responsável pelo Supabase no painel de
-Authentication. O botão Cadastrar apenas orienta solicitar esse acesso; não cria
-contas nem concede privilégios pelo aplicativo.
+O administrador entra com a conta já configurada no Supabase Auth. A tela
+contém somente os campos de e-mail e senha e o botão Entrar; não oferece cadastro
+de novas contas pelo aplicativo.
 
-**Antes do uso público:** nas regras verificadas em 24/10/2026, o banco permite
-operações administrativas a qualquer usuário autenticado e o Auth aceita cadastro
-público. A responsável deve revisar essa autorização e o cadastro no Supabase.
-Ocultar o botão de cadastro não restringe a API. Esta integração verifica a sessão,
-mas não altera RLS, papéis, configurações de autenticação ou dados do banco.
+O cadastro público foi desativado no Supabase Auth com autorização da equipe:
+a API não deve aceitar novas inscrições de usuários. A conta administrativa
+existente continua entrando normalmente. As políticas RLS das tabelas foram
+preservadas e permitem operações administrativas a usuários autenticados;
+somente a responsável pelo projeto deve criar outras contas no painel.
+
+## Conexão das novas telas administrativas
+
+Em Mídia, as categorias e fotos vêm do Supabase. O pop-up envia as imagens ao
+bucket privado `media-images`, grava o caminho e o ID da categoria em `media`
+e recarrega os registros depois de salvar ou apagar. A área pública usa os mesmos
+registros. Imagens de até 10 MB são aceitas; falhas parciais mantêm as imagens
+pendentes para nova tentativa e não são anunciadas como sucesso.
+
+Em Configurações, Salvar senha confirma a sessão, reautentica a senha atual e
+aguarda a resposta do Supabase Auth antes de limpar os campos. A integração
+preserva as senhas exatamente como digitadas e mantém os campos em caso de erro.
+
+Em Gerenciar Eventos, criar e editar grava na tabela `events`; a capa escolhida
+vai para o bucket privado `event-images`. As telas públicas e o Participe leem os
+mesmos registros. Data e horário são salvos sem converter a seleção local para
+UTC. O seletor existente continua nativo no Android/iOS e possui entrada de
+data/hora no navegador. Título, data/hora e local são obrigatórios.
+
+A pesquisa pública recebe o texto do cabeçalho e filtra os eventos, categorias e
+opções de inscrição já carregados. Em Doações, filtra somente as campanhas locais;
+não consulta uma tabela de campanhas inexistente nem interfere no pedido de oração.
+
+A tela de campanhas de doação ainda usa o estado local criado no design.
+O banco existente não tem uma tabela de campanhas nem um bucket destinado a
+elas. A conexão dessa tela e dos banners públicos depende dessa estrutura ser
+preparada pela responsável pelo banco; esta entrega não cria tabelas, buckets
+ou políticas de acesso para campanhas.
+
+Arquivos desta integração:
+
+- Mídias: `src/Screens/MidiaScreen/index.jsx`, `src/Screens/MidiaScreen/PopUp/index.jsx`
+  e `src/services/supabaseMedia.js`.
+- Senha: `src/Screens/SettingsScreen/index.jsx` e `src/services/supabaseSettings.js`.
+- Eventos: `src/Screens/ManageEventsADM/index.jsx`, `src/services/supabaseEvents.js`
+  e `src/utils/imageUploadData.js` (preparação de imagem compartilhada com mídia).
+- Pesquisa: `src/components/header/searchHeader.jsx`, `src/Screens/EventsAndMedia/index.jsx`,
+  `src/Screens/SocialMedia/index.jsx` e `src/Screens/DonationsRequests/index.jsx`.
+- Rotas e confirmações: `src/Navigation/StackN.jsx` e `src/utils/confirmAction.js`.
+- Dependências e execução: `package.json`, `package-lock.json` e este `README.md`.
+- Verificações: `tests/integration.test.cjs`, `tests/feedback.test.cjs`,
+  `tests/media.test.cjs`, `tests/media-popup.test.cjs`, `tests/settings.test.cjs`,
+  `tests/events.test.cjs` e `tests/events-screen.test.cjs`.
+
+As versões do Expo SDK 58 da equipe foram preservadas. `expo install --check`
+indica patches mais novos disponíveis; eles não foram aplicados nesta integração.
 
 ## Testes
 

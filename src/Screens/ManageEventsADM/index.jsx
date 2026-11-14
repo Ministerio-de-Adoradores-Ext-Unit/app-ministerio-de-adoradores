@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -16,34 +16,29 @@ import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import style from "./style";
 import NavBar from "../../components/navBar";
-
-const initialEvents = [
-  {
-    id: 1,
-    title: "Culto de Jovens",
-    date: "Sábado, 19h",
-    local: "Salão da igreja",
-  },
-  {
-    id: 2,
-    title: "Culto das Irmãs",
-    date: "Quinta, 20h",
-    local: "Auditório principal",
-  },
-  { id: 3, title: "Santa Ceia", date: "Domingo, 18h", local: "Templo central" },
-  {
-    id: 4,
-    title: "Culto das crianças",
-    date: "Sábado, 15h",
-    local: "Sala infantil",
-  },
-];
+import useScreenData from "../../hooks/useScreenData";
+import { listEventsWithImages } from "../../services/supabaseData";
+import { saveEvent } from "../../services/supabaseEvents";
+import showMessage from "../../utils/showMessage";
 
 const emptyForm = { title: "", date: "", local: "" };
+const formatDateTime = (date) => date.toLocaleString("pt-BR", {
+  day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+});
+const dateInputValue = (date) => {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
 
 export default function ManageEventsADM() {
   const navigation = useNavigation();
-  const [events, setEvents] = useState(initialEvents);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const loadEvents = useCallback(() => listEventsWithImages(), [refreshKey]);
+  const eventsState = useScreenData(loadEvents, { authenticated: true });
+  const events = eventsState.data.map((event) => {
+    const dateTime = `${event.data}T${event.horario}`;
+    return { ...event, title: event.titulo, dateTime, date: formatDateTime(new Date(dateTime)), image: event.imageUrl };
+  });
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(emptyForm);
@@ -53,21 +48,38 @@ export default function ManageEventsADM() {
   const [pickerDate, setPickerDate] = useState(new Date());
   const [selectedDateTime, setSelectedDateTime] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedImageAsset, setSelectedImageAsset] = useState(null);
+  const [working, setWorking] = useState(false);
+  const sending = useRef(false);
+  const mounted = useRef(true);
+  const pickerTimer = useRef(null);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      clearTimeout(pickerTimer.current);
+    };
+  }, []);
 
   const filteredEvents = events.filter((event) =>
     event.title.toLowerCase().includes(search.toLowerCase()),
   );
 
   const openCreateModal = () => {
+    if (sending.current) return;
     setEditingEventId(null);
     setForm(emptyForm);
     setPickerMode("date");
     setPickerDate(new Date());
     setSelectedDateTime(null);
+    setSelectedImage(null);
+    setSelectedImageAsset(null);
     setIsModalVisible(true);
   };
 
   const openEditModal = (event) => {
+    if (sending.current) return;
     setEditingEventId(event.id);
     setForm({
       title: event.title,
@@ -81,30 +93,48 @@ export default function ManageEventsADM() {
     setSelectedDateTime(event.dateTime ? eventDateTime : null);
     setPickerMode("date");
     setSelectedImage(event.image || null);
+    setSelectedImageAsset(null);
     setIsModalVisible(true);
   };
 
-  const handleCloseModal = () => {
+  const resetModal = () => {
+    clearTimeout(pickerTimer.current);
     setIsModalVisible(false);
     setEditingEventId(null);
     setForm(emptyForm);
     setShowDatePicker(false);
     setPickerMode("date");
     setSelectedImage(null);
+    setSelectedImageAsset(null);
+  };
+
+  const handleCloseModal = () => {
+    if (!sending.current) resetModal();
   };
 
   const handlePickImage = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) return;
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
+    if (sending.current) return;
+    sending.current = true;
+    setWorking(true);
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        showMessage("Permissão necessária", "Permita o acesso às fotos para escolher a capa do evento.");
+        return;
+      }
+      if (!mounted.current) return;
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"], allowsEditing: true, quality: 1, base64: true,
+      });
+      if (!result.canceled && mounted.current && result.assets?.[0]) {
+        setSelectedImage(result.assets[0].uri);
+        setSelectedImageAsset(result.assets[0]);
+      }
+    } catch {
+      if (mounted.current) showMessage("Não foi possível selecionar", "Tente abrir suas fotos novamente.");
+    } finally {
+      sending.current = false;
+      if (mounted.current) setWorking(false);
     }
   };
 
@@ -119,7 +149,10 @@ export default function ManageEventsADM() {
       setPickerDate(selectedDate);
       setShowDatePicker(false);
       setPickerMode("time");
-      setTimeout(() => setShowDatePicker(true), 250);
+      clearTimeout(pickerTimer.current);
+      pickerTimer.current = setTimeout(() => {
+        if (mounted.current) setShowDatePicker(true);
+      }, 250);
       return;
     }
 
@@ -133,50 +166,35 @@ export default function ManageEventsADM() {
       dateTime.setTime(selectedDate.getTime());
     }
 
+    dateTime.setSeconds(0, 0);
     setSelectedDateTime(dateTime);
-    const formatted = dateTime.toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const formatted = formatDateTime(dateTime);
     setForm((prev) => ({ ...prev, date: formatted }));
   };
 
-  const handleSaveEvent = () => {
-    if (!form.title.trim()) return;
-
-    if (editingEventId !== null) {
-      setEvents((prev) =>
-        prev.map((event) =>
-          event.id === editingEventId
-            ? {
-                ...event,
-                title: form.title.trim(),
-                date: form.date.trim() || event.date,
-                dateTime: selectedDateTime?.toISOString() || event.dateTime,
-                local: form.local.trim() || event.local,
-                image: selectedImage || event.image,
-              }
-            : event,
-        ),
-      );
-    } else {
-      setEvents((prev) => [
-        {
-          id: Date.now(),
-          title: form.title.trim(),
-          date: form.date.trim() || "Data a definir",
-          dateTime: selectedDateTime?.toISOString(),
-          local: form.local.trim() || "Local a definir",
-          image: selectedImage,
-        },
-        ...prev,
-      ]);
+  const handleSaveEvent = async () => {
+    if (sending.current) return;
+    sending.current = true;
+    setWorking(true);
+    try {
+      await saveEvent({
+        id: editingEventId || undefined,
+        title: form.title,
+        dateTime: selectedDateTime,
+        local: form.local,
+        imageAsset: selectedImageAsset || undefined,
+      });
+      if (mounted.current) {
+        resetModal();
+        setRefreshKey((value) => value + 1);
+        showMessage("Evento salvo", "As informações do evento foram salvas com sucesso.");
+      }
+    } catch (error) {
+      if (mounted.current) showMessage("Não foi possível salvar o evento", error.message);
+    } finally {
+      sending.current = false;
+      if (mounted.current) setWorking(false);
     }
-
-    handleCloseModal();
   };
 
   return (
@@ -201,6 +219,9 @@ export default function ManageEventsADM() {
           <TouchableOpacity
             style={style.addCard}
             onPress={openCreateModal}
+            disabled={working}
+            accessibilityRole="button"
+            accessibilityLabel="Adicionar evento"
             activeOpacity={0.85}
           >
             <Text style={style.addText}>Adicionar Evento</Text>
@@ -228,11 +249,19 @@ export default function ManageEventsADM() {
           </View>
 
           <View style={style.listContainer}>
+            {eventsState.loading && <Text style={style.eventText}>Carregando eventos...</Text>}
+            {!!eventsState.errorMessage && <Text style={style.eventText}>Não foi possível carregar os eventos. Reabra a tela para tentar novamente.</Text>}
+            {!eventsState.loading && !eventsState.errorMessage && filteredEvents.length === 0 && (
+              <Text style={style.eventText}>Nenhum evento encontrado.</Text>
+            )}
             {filteredEvents.map((event) => (
               <TouchableOpacity
                 key={event.id}
                 style={style.eventItem}
                 onPress={() => openEditModal(event)}
+                disabled={working}
+                accessibilityRole="button"
+                accessibilityLabel={`Editar evento: ${event.title}`}
                 activeOpacity={0.85}
               >
                 <Text style={style.eventText}>{event.title}</Text>
@@ -256,6 +285,9 @@ export default function ManageEventsADM() {
               </Text>
               <TouchableOpacity
                 onPress={handleCloseModal}
+                disabled={working}
+                accessibilityRole="button"
+                accessibilityLabel="Fechar evento"
                 style={style.closeButton}
               >
                 <Icon name="x" size={22} color="#1D1D1D" />
@@ -267,6 +299,7 @@ export default function ManageEventsADM() {
               placeholder="Título"
               placeholderTextColor="#0B233E"
               value={form.title}
+              editable={!working}
               onChangeText={(value) =>
                 setForm((prev) => ({ ...prev, title: value }))
               }
@@ -274,6 +307,9 @@ export default function ManageEventsADM() {
 
             <TouchableOpacity
               style={style.dateButton}
+              disabled={working}
+              accessibilityRole="button"
+              accessibilityLabel="Escolher dia e horário"
               onPress={() => {
                 setPickerMode("date");
                 setShowDatePicker(true);
@@ -285,7 +321,25 @@ export default function ManageEventsADM() {
               </Text>
             </TouchableOpacity>
 
-            {showDatePicker && (
+            {showDatePicker && Platform.OS === "web" && (
+              <View style={style.dateButton}>
+                <input
+                  type="datetime-local"
+                  aria-label="Dia e horário do evento"
+                  value={dateInputValue(pickerDate)}
+                  disabled={working}
+                  onChange={(event) => {
+                    const dateTime = new Date(event.target.value);
+                    if (Number.isNaN(dateTime.getTime())) return;
+                    setPickerDate(dateTime);
+                    setSelectedDateTime(dateTime);
+                    setForm((prev) => ({ ...prev, date: formatDateTime(dateTime) }));
+                  }}
+                  style={{ width: "100%", border: 0, backgroundColor: "transparent", color: "#0B233E", fontSize: 16 }}
+                />
+              </View>
+            )}
+            {showDatePicker && Platform.OS !== "web" && (
               <DateTimePicker
                 key={pickerMode}
                 value={pickerMode === "time" ? pickerDate : pickerDate}
@@ -300,6 +354,7 @@ export default function ManageEventsADM() {
               placeholder="Local"
               placeholderTextColor="#0B233E"
               value={form.local}
+              editable={!working}
               onChangeText={(value) =>
                 setForm((prev) => ({ ...prev, local: value }))
               }
@@ -316,13 +371,20 @@ export default function ManageEventsADM() {
               <TouchableOpacity
                 style={style.primaryButton}
                 onPress={handleSaveEvent}
+                disabled={working}
+                accessibilityRole="button"
+                accessibilityLabel="Salvar evento"
+                accessibilityState={{ disabled: working, busy: working }}
               >
-                <Text style={style.primaryButtonText}>Salvar</Text>
+                <Text style={style.primaryButtonText}>{working ? "Salvando..." : "Salvar"}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={style.iconButton}
                 onPress={handlePickImage}
+                disabled={working}
+                accessibilityRole="button"
+                accessibilityLabel="Escolher capa do evento"
               >
                 <Icon name="image" size={26} color="#fff" />
               </TouchableOpacity>

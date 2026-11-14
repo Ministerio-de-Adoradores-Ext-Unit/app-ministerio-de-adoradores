@@ -22,6 +22,8 @@ const AuthenticatedMedia = withAuthenticatedScreen(MidiaScreen);
 const AuthenticatedPrayers = withAuthenticatedScreen(PrayerRequestsADM);
 const AuthenticatedParticipations = withAuthenticatedScreen(ParticipacoesADM);
 const AuthenticatedEvents = withAuthenticatedScreen(ManageEventsADM);
+const AuthenticatedDonations = withAuthenticatedScreen(DonationADM);
+const AuthenticatedSettings = withAuthenticatedScreen(SettingsScreen);
 
 const StackN = () => {
   return (
@@ -45,11 +47,11 @@ const StackN = () => {
       <Stack.Screen name="ManageEventsADM" component={AuthenticatedEvents} />
       <Stack.Screen
         name="DonationADM"
-        component={withAuthenticatedScreen(DonationADM)}
+        component={AuthenticatedDonations}
       />
       <Stack.Screen
         name="SettingsScreen"
-        component={withAuthenticatedScreen(SettingsScreen)}
+        component={AuthenticatedSettings}
       />
       <Stack.Screen name="EventsAndMedia" component={EventsAndMedia} />
     </Stack.Navigator>

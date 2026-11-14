@@ -26,6 +26,8 @@ import {
 } from "../../services/supabaseData";
 
 const IMAGE_REFRESH_MS = 50 * 60 * 1000;
+const normalizeSearch = (value) => String(value ?? "").normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").trim();
 
 // Preserva as capas decorativas do design; não são fotos da galeria.
 const categoryCover = (name) => {
@@ -49,6 +51,7 @@ const DatabaseImage = ({ imageUrl, style }) => {
 };
 
 const EventsAndMedia = () => {
+  const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(null);
   const savingPhoto = useRef(false);
   const events = useScreenData(listEventsWithImages, { refreshMs: IMAGE_REFRESH_MS });
@@ -56,6 +59,13 @@ const EventsAndMedia = () => {
   const categoryId = selectedCategory?.id;
   const loadPhotos = useCallback(() => listMediaByCategory(categoryId), [categoryId]);
   const photos = useScreenData(loadPhotos, { refreshMs: IMAGE_REFRESH_MS });
+  const query = normalizeSearch(search);
+  const filteredEvents = events.data.filter((event) =>
+    normalizeSearch(`${event.titulo} ${event.local || ""}`).includes(query),
+  );
+  const filteredCategories = categories.data.filter((category) =>
+    normalizeSearch(category.categoria).includes(query),
+  );
 
   const savePhoto = async (imageUrl) => {
     if (!imageUrl || savingPhoto.current) return;
@@ -99,7 +109,7 @@ const EventsAndMedia = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <SearchHeader />
+      <SearchHeader value={search} onChangeText={setSearch} />
 
       <ScrollView
         style={styles.scrollView}
@@ -109,7 +119,7 @@ const EventsAndMedia = () => {
         <TitleComponent title="EVENTOS" />
 
         <FlatList
-          data={events.data}
+          data={filteredEvents}
           horizontal
           keyExtractor={(item) => item.id}
           showsHorizontalScrollIndicator={false}
@@ -118,7 +128,7 @@ const EventsAndMedia = () => {
             <Text accessibilityLiveRegion="polite">
               {events.loading ? "Carregando eventos..." : events.errorMessage
                 ? "Não foi possível carregar os eventos. Reabra a tela para tentar novamente."
-                : "Nenhum evento disponível."}
+                : query && events.data.length ? "Nenhum evento encontrado." : "Nenhum evento disponível."}
             </Text>
           }
           renderItem={({ item }) => (
@@ -162,7 +172,7 @@ const EventsAndMedia = () => {
 
         <TitleComponent title="MÍDIAS" />
         <FlatList
-          data={categories.data}
+          data={filteredCategories}
           horizontal
           keyExtractor={(item) => item.id}
           showsHorizontalScrollIndicator={false}
@@ -171,7 +181,7 @@ const EventsAndMedia = () => {
             <Text accessibilityLiveRegion="polite">
               {categories.loading ? "Carregando categorias..." : categories.errorMessage
                 ? "Não foi possível carregar as categorias. Reabra a tela para tentar novamente."
-                : "Nenhuma categoria disponível."}
+                : query && categories.data.length ? "Nenhuma categoria encontrada." : "Nenhuma categoria disponível."}
             </Text>
           }
           renderItem={({ item }) => (

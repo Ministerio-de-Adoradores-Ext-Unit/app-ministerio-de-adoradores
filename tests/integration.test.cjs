@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -14,44 +13,13 @@ function load(file, dependencies, env = { EXPO_PUBLIC_SUPABASE_URL: 'https://pro
   const { code } = babel.transformSync(fs.readFileSync(filename, 'utf8'), {
     filename, configFile: false, babelrc: false,
     plugins: ['@babel/plugin-transform-modules-commonjs'],
-=======
-const { test } = require("node:test");
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
-const babel = require("@babel/core");
-
-// Executa os módulos reais; simula somente a fronteira com banco, navegação e SO.
-function load(file, dependencies) {
-  const filename = path.join(__dirname, "..", file);
-  const { code } = babel.transformSync(fs.readFileSync(filename, "utf8"), {
-    filename,
-    configFile: false,
-    babelrc: false,
-    plugins: ["@babel/plugin-transform-modules-commonjs"],
->>>>>>> Stashed changes
   });
   const exports = {};
-  vm.runInNewContext(
-    code,
-    {
-      exports,
-      require: (name) => {
-        if (!(name in dependencies))
-          throw new Error(`Dependência não simulada: ${name}`);
-        return dependencies[name];
-      },
-      URL,
-      process: {
-        env: { EXPO_PUBLIC_SUPABASE_URL: "https://project.supabase.co" },
-      },
-      setTimeout,
-      clearTimeout,
-      setInterval,
-      clearInterval,
+  vm.runInNewContext(code, {
+    exports, require: (name) => {
+      if (!(name in dependencies)) throw new Error(`Dependência não simulada: ${name}`);
+      return dependencies[name];
     },
-<<<<<<< Updated upstream
     URL, process: { env },
     setTimeout, clearTimeout, setInterval, clearInterval,
   }, { filename });
@@ -150,20 +118,6 @@ test('ausência de configuração continua bloqueando o cliente com mensagem exp
 });
 
 function setup({ rows = [], error = null, user = { id: 'admin' }, authError = null, missing = '' } = {}) {
-=======
-    { filename },
-  );
-  return exports;
-}
-
-function setup({
-  rows = [],
-  error = null,
-  user = { id: "admin" },
-  authError = null,
-  missing = "",
-} = {}) {
->>>>>>> Stashed changes
   const calls = [];
   const query = {
     select: (...args) => {

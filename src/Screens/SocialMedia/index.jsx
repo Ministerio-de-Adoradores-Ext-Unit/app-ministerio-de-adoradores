@@ -15,7 +15,11 @@ import {
 import useScreenData from "../../hooks/useScreenData";
 import showMessage from "../../utils/showMessage";
 
+const normalizeSearch = (value) => String(value ?? "").normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").trim();
+
 const SocialMedia = () => {
+  const [search, setSearch] = useState("");
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -24,10 +28,19 @@ const SocialMedia = () => {
   const sending = useRef(false);
   const { data: events, loading: eventsLoading, errorMessage } = useScreenData(listEvents);
   const selectedEventId = events.some((event) => event.id === eventId) ? eventId : "";
+  const query = normalizeSearch(search);
+  const filteredEvents = events.filter((event) =>
+    normalizeSearch(`${event.titulo} ${event.local || ""}`).includes(query),
+  );
+  const visibleEventId = filteredEvents.some((event) => event.id === selectedEventId) ? selectedEventId : "";
+  const handleSearch = (text) => {
+    setSearch(text);
+    setEventId("");
+  };
 
   const handleSubmit = async () => {
     if (sending.current) return;
-    if (eventsLoading || errorMessage || !selectedEventId) {
+    if (eventsLoading || errorMessage || !visibleEventId) {
       showMessage("Selecione um evento", errorMessage
         ? "Não foi possível carregar os eventos. Volte à tela para tentar novamente."
         : "Aguarde o carregamento e selecione um evento disponível.");
@@ -57,7 +70,7 @@ const SocialMedia = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <SearchHeader />
+      <SearchHeader value={search} onChangeText={handleSearch} />
 
       <ScrollView
         style={styles.scrollView}
@@ -87,10 +100,11 @@ const SocialMedia = () => {
           <InputComponent
             placeholder={eventsLoading ? "Carregando eventos..." : errorMessage
               ? "Falha ao carregar — volte à tela para tentar novamente"
-              : events.length ? "Selecione o evento" : "Nenhum evento disponível"}
-            valorInserido={selectedEventId}
+              : !events.length ? "Nenhum evento disponível"
+                : !filteredEvents.length ? "Nenhum evento encontrado" : "Selecione o evento"}
+            valorInserido={visibleEventId}
             setValor={setEventId}
-            options={events.map((event) => ({
+            options={filteredEvents.map((event) => ({
               label: `${event.titulo} - ${event.data.split("-").reverse().join("/")}`,
               value: event.id,
             }))}
@@ -99,7 +113,7 @@ const SocialMedia = () => {
           <View>
             <ButtonForm
               title={loading ? "ENVIANDO..." : "INSCREVER-SE"}
-              onPress={loading || eventsLoading || !!errorMessage || events.length === 0
+              onPress={loading || eventsLoading || !!errorMessage || filteredEvents.length === 0
                 ? undefined : handleSubmit}
               style={{ width: "50%", marginTop: 20, alignSelf: "center" }}
             />

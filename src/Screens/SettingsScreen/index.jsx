@@ -1,6 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -13,6 +12,8 @@ import {
 import Icon from "react-native-vector-icons/Feather";
 import { useNavigation } from "@react-navigation/native";
 import styles from "./style";
+import { changePassword } from "../../services/supabaseSettings";
+import showMessage from "../../utils/showMessage";
 
 export default function SettingsScreen() {
   const navigation = useNavigation();
@@ -22,27 +23,33 @@ export default function SettingsScreen() {
   const [mostrarSenhaAtual, setMostrarSenhaAtual] = useState(false);
   const [mostrarNovaSenha, setMostrarNovaSenha] = useState(false);
   const [mostrarConfirmarSenha, setMostrarConfirmarSenha] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const sending = useRef(false);
+  const mounted = useRef(true);
 
-  const handleSalvar = () => {
-    if (!senhaAtual.trim() || !novaSenha.trim() || !confirmarSenha.trim()) {
-      Alert.alert("Atenção", "Preencha todos os campos para continuar.");
-      return;
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  const handleSalvar = async () => {
+    if (sending.current) return;
+    sending.current = true;
+    setLoading(true);
+    try {
+      await changePassword({ currentPassword: senhaAtual, newPassword: novaSenha, confirmation: confirmarSenha });
+      if (mounted.current) {
+        setSenhaAtual("");
+        setNovaSenha("");
+        setConfirmarSenha("");
+        showMessage("Sucesso", "Sua senha foi redefinida com sucesso.");
+      }
+    } catch (error) {
+      if (mounted.current) showMessage("Não foi possível alterar a senha", error.message);
+    } finally {
+      sending.current = false;
+      if (mounted.current) setLoading(false);
     }
-
-    if (novaSenha.length < 6) {
-      Alert.alert("Atenção", "A nova senha precisa ter pelo menos 6 caracteres.");
-      return;
-    }
-
-    if (novaSenha !== confirmarSenha) {
-      Alert.alert("Atenção", "A nova senha e a confirmação não coincidem.");
-      return;
-    }
-
-    Alert.alert("Sucesso", "Sua senha foi redefinida com sucesso.");
-    setSenhaAtual("");
-    setNovaSenha("");
-    setConfirmarSenha("");
   };
 
   return (
@@ -77,6 +84,9 @@ export default function SettingsScreen() {
                 secureTextEntry={!mostrarSenhaAtual}
                 value={senhaAtual}
                 onChangeText={setSenhaAtual}
+                editable={!loading}
+                autoCapitalize="none"
+                autoCorrect={false}
               />
               <TouchableOpacity onPress={() => setMostrarSenhaAtual((prev) => !prev)}>
                 <Icon
@@ -96,6 +106,9 @@ export default function SettingsScreen() {
                 secureTextEntry={!mostrarNovaSenha}
                 value={novaSenha}
                 onChangeText={setNovaSenha}
+                editable={!loading}
+                autoCapitalize="none"
+                autoCorrect={false}
               />
               <TouchableOpacity onPress={() => setMostrarNovaSenha((prev) => !prev)}>
                 <Icon
@@ -115,6 +128,9 @@ export default function SettingsScreen() {
                 secureTextEntry={!mostrarConfirmarSenha}
                 value={confirmarSenha}
                 onChangeText={setConfirmarSenha}
+                editable={!loading}
+                autoCapitalize="none"
+                autoCorrect={false}
               />
               <TouchableOpacity onPress={() => setMostrarConfirmarSenha((prev) => !prev)}>
                 <Icon
@@ -125,8 +141,15 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.primaryButton} onPress={handleSalvar}>
-              <Text style={styles.primaryButtonText}>SALVAR SENHA</Text>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleSalvar}
+              disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel="Salvar senha"
+              accessibilityState={{ disabled: loading, busy: loading }}
+            >
+              <Text style={styles.primaryButtonText}>{loading ? "SALVANDO..." : "SALVAR SENHA"}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

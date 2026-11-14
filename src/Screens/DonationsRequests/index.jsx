@@ -14,11 +14,19 @@ import {
   getDonationCampaignSource,
 } from "../DonationADM/data";
 
+const normalizeSearch = (value) => String(value ?? "").normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").trim();
+
 const DonationsRequests = () => {
+  const [search, setSearch] = useState("");
   const [nome, setNome] = useState("");
   const [pedido, setPedido] = useState("");
   const [loading, setLoading] = useState(false);
   const sending = useRef(false);
+  const query = normalizeSearch(search);
+  const filteredCampaigns = donationCampaigns.filter((campaign) =>
+    normalizeSearch(`${campaign.title || ""} ${campaign.subtitle || ""} ${campaign.description || ""}`).includes(query),
+  );
 
   const handleSubmit = async () => {
     if (sending.current) return;
@@ -42,7 +50,7 @@ const DonationsRequests = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <SearchHeader />
+      <SearchHeader value={search} onChangeText={setSearch} />
 
       <ScrollView
         style={styles.scrollView}
@@ -51,7 +59,7 @@ const DonationsRequests = () => {
       >
         <TitleComponent title="DOAÇÕES" />
 
-        {donationCampaigns.map((campaign) => (
+        {filteredCampaigns.map((campaign) => (
           <View key={campaign.id} style={styles.banner}>
             <Image
               source={getDonationCampaignSource(campaign)}
@@ -59,6 +67,13 @@ const DonationsRequests = () => {
             />
           </View>
         ))}
+        {filteredCampaigns.length === 0 && (
+          <View style={styles.formSection}>
+            <Text accessibilityLiveRegion="polite">
+              {query && donationCampaigns.length ? "Nenhuma campanha encontrada." : "Nenhuma campanha disponível."}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.formSection}>
           <Text style={[styles.title, { fontSize: 26 }]}>

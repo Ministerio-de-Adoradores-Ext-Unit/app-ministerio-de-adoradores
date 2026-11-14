@@ -21,7 +21,6 @@ export default function MidiaScreen() {
   const [searchText, setSearchText] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-  const [mediaByCategory, setMediaByCategory] = useState({});
   const categoriesState = useScreenData(listMediaCategories);
   const categories = categoriesState.data;
   const { loading, errorMessage } = categoriesState;
@@ -162,14 +161,6 @@ export default function MidiaScreen() {
       <PopUp
         visible={selectedCategory !== null}
         category={selectedCategory}
-        photos={mediaByCategory[selectedCategory?.id] || []}
-        onPhotosChange={(photos) => {
-          if (!selectedCategory) return;
-          setMediaByCategory((current) => ({
-            ...current,
-            [selectedCategory.id]: photos,
-          }));
-        }}
         onClose={() => setSelectedCategory(null)}
       />
 
