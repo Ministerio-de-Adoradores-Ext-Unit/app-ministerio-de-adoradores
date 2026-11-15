@@ -2,6 +2,21 @@
 
 Aplicativo em Expo/React Native com integração ao Supabase.
 
+## Baixar e instalar no Android
+
+[**Baixar APK — Ministério de Adoradores 1.0.0**](https://github.com/Ministerio-de-Adoradores-Ext-Unit/app-ministerio-de-adoradores/releases/download/v1.0.0-teste.1/Ministerio-de-Adoradores-1.0.0.apk)
+
+Versão de testes para Android 7.0 ou posterior.
+
+1. Abra o link acima no celular e baixe o arquivo `.apk`.
+2. Abra o arquivo e, se o Android solicitar, autorize a instalação pelo aplicativo usado para baixar.
+3. Toque em **Instalar** e abra o app.
+
+Não precisa de Expo Go, QR Code ou computador ligado. O acesso aos dados e os
+envios precisam de internet. A área administrativa usa a conta existente da equipe.
+
+[Ver versões e notas de teste](https://github.com/Ministerio-de-Adoradores-Ext-Unit/app-ministerio-de-adoradores/releases).
+
 ## Executar
 
 Testado com Node.js 24.15.0. Para o SDK 58, use Node.js 24 a partir de 24.3
@@ -32,9 +47,10 @@ Esse comando usa o túnel ngrok explicitamente. No SDK 58, o túnel padrão exig
 login em uma conta Expo. Mantenha o terminal aberto e escaneie o QR da execução
 atual; um QR antigo deixa de funcionar quando o servidor ou o túnel é encerrado.
 
-As pastas nativas versionadas não foram regeneradas nesta atualização para Expo Go.
-Para produzir um APK próprio, é necessário migrar e compilar o projeto Android
-separadamente, preservando as configurações nativas da equipe.
+O APK de testes disponível em Releases foi compilado separadamente a partir da
+configuração Expo SDK 58. As pastas nativas versionadas continuam na versão
+anterior; para novas compilações, gere o Android compatível em uma cópia separada
+do projeto, preservando as configurações nativas da equipe.
 
 ## Configuração compartilhada
 
