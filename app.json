@@ -2,7 +2,7 @@
   "expo": {
     "name": "app-extensao-universitaria",
     "slug": "app-extensao-universitaria",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/img/logoImagem.png",
     "userInterfaceStyle": "light",
@@ -10,6 +10,7 @@
       "supportsTablet": true
     },
     "android": {
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/img/logoImagem.png",
         "backgroundColor": "#ffffff"

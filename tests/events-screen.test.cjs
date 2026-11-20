@@ -233,3 +233,58 @@ test('desmontar durante o envio impede atualização e aviso de sucesso tardios'
   assert.equal(h.updatesAfterUnmount(), 0);
   assert.equal(h.messages.length, 0);
 });
+
+test('retirar capa fica pendente até salvar e mantém o evento e a seleção em caso de falha', async (t) => {
+  const h = screenHarness([databaseEvent]);
+  t.after(() => h.unmount());
+  h.button('Editar evento: Evento confirmado no banco').props.onPress();
+  h.render();
+  h.button('Remover capa do evento').props.onPress();
+  h.render();
+  assert.equal(h.calls.length, 0);
+  h.setSave(async () => { throw new Error('Falha controlada na retirada.'); });
+  await h.button('Salvar evento').props.onPress();
+  h.render();
+  assert.equal(h.calls[0].id, databaseEvent.id);
+  assert.equal(h.calls[0].removeImage, true);
+  assert.equal(h.calls[0].imageAsset, undefined);
+  assert.equal(h.modal().props.visible, true);
+  assert.equal(h.input('Título').props.value, databaseEvent.titulo);
+  h.setSave(async () => databaseEvent);
+  await h.button('Salvar evento').props.onPress();
+  h.render();
+  assert.equal(h.calls[1].removeImage, true);
+  assert.equal(h.modal().props.visible, false);
+});
+
+test('escolher uma capa nova cancela a retirada e reabrir edição restaura a capa do banco', async (t) => {
+  const h = screenHarness([databaseEvent]);
+  t.after(() => h.unmount());
+  h.button('Editar evento: Evento confirmado no banco').props.onPress();
+  h.render();
+  h.button('Remover capa do evento').props.onPress();
+  h.render();
+  await h.pick();
+  await h.button('Salvar evento').props.onPress();
+  assert.equal(h.calls[0].removeImage, false);
+  assert.equal(h.calls[0].imageAsset, imageAsset);
+  h.render();
+  h.button('Editar evento: Evento confirmado no banco').props.onPress();
+  h.render();
+  assert.ok(h.button('Remover capa do evento'));
+});
+
+test('capa sem prévia assinada ainda pode ser retirada usando o caminho original do banco', async (t) => {
+  const event = { ...databaseEvent, imageUrl: null, imagem_url: 'conta/evento/capa.png' };
+  const h = screenHarness([event]);
+  t.after(() => h.unmount());
+  h.button('Editar evento: Evento confirmado no banco').props.onPress();
+  h.render();
+  assert.ok(h.button('Remover capa do evento'));
+  h.button('Remover capa do evento').props.onPress();
+  h.render();
+  await h.button('Salvar evento').props.onPress();
+  assert.equal(h.calls[0].removeImage, true);
+  assert.equal(h.calls[0].expectedImagePath, event.imagem_url);
+  assert.equal(h.calls[0].id, event.id);
+});

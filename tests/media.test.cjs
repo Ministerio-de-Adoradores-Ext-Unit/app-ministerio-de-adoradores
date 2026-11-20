@@ -35,6 +35,7 @@ function setup(options = {}) {
   let uploadedPath;
   let rowExists = false;
   let fileExists = false;
+  let deleted = false;
   const stored = { id: MEDIA, category_id: CATEGORY, imagem_url: `${USER}/${CATEGORY}/foto.png` };
   const storage = {
     async upload(objectPath, bytes, settings) {
@@ -59,11 +60,12 @@ function setup(options = {}) {
       calls.push(['table', table]);
       assert.equal(table, 'media');
       let operation = 'read';
+      const filters = [];
       const query = {
         select(columns) { calls.push(['select', columns]); return query; },
         insert(values) { operation = 'insert'; calls.push(['insert', values]); return query; },
         delete() { operation = 'delete'; calls.push(['delete']); return query; },
-        eq(column, value) { calls.push(['eq', column, value]); return query; },
+        eq(column, value) { filters.push([column, value]); calls.push(['eq', column, value]); return query; },
         async single() {
           calls.push(['single', operation]);
           if (operation === 'insert') {
@@ -81,6 +83,7 @@ function setup(options = {}) {
           calls.push(['recover']);
           if (options.recoveryThrow) throw new Error(INTERNAL);
           if (Object.hasOwn(options, 'recoveryResult')) return options.recoveryResult;
+          if (filters.some(([column]) => column === 'id')) return { data: deleted ? null : stored, error: null };
           return {
             data: options.commitBeforeResponse
               ? { ...stored, imagem_url: uploadedPath, data: null, created_at: '2026-11-14T12:00:00Z' }
@@ -89,9 +92,16 @@ function setup(options = {}) {
           };
         },
         then(resolve, reject) {
+          if (operation === 'read') {
+            calls.push(['references']);
+            const data = deleted ? [] : [stored];
+            return Promise.resolve({ data, error: null, count: data.length }).then(resolve, reject);
+          }
           assert.equal(operation, 'delete');
           if (options.deleteThrow) return Promise.reject(new Error(INTERNAL)).then(resolve, reject);
-          return Promise.resolve(options.deleteResult ?? { data: [{ id: MEDIA }], error: null }).then(resolve, reject);
+          const result = options.deleteResult ?? { data: [{ id: MEDIA }], error: null };
+          if (!result.error && result.data?.some((row) => row.id === MEDIA)) deleted = true;
+          return Promise.resolve(result).then(resolve, reject);
         },
       };
       return query;
@@ -302,14 +312,16 @@ test('exclusão valida parâmetros antes da consulta', async () => {
   }
 });
 
-test('exclusão consulta e apaga somente ID e categoria selecionados', async () => {
+test('exclusão confirma DELETE por ID, categoria e caminho antes de limpar arquivo', async () => {
   const { api, calls, stored } = setup();
-  assert.equal(await api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA }), true);
+  const result = await api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA });
+  assert.equal(result.deleted, true);
+  assert.equal(result.filePreserved, false);
   assert.deepEqual(calls.filter(([type]) => type === 'eq').map(([, field, value]) => [field, value]), [
-    ['id', MEDIA], ['category_id', CATEGORY], ['id', MEDIA], ['category_id', CATEGORY],
+    ['id', MEDIA], ['category_id', CATEGORY], ['id', MEDIA], ['category_id', CATEGORY], ['imagem_url', stored.imagem_url],
   ]);
   assert.equal(calls.find(([type]) => type === 'remove')[1][0], stored.imagem_url);
-  assert.ok(calls.findIndex(([type]) => type === 'remove') < calls.findIndex(([type]) => type === 'delete'));
+  assert.ok(calls.findIndex(([type]) => type === 'delete') < calls.findIndex(([type]) => type === 'remove'));
 });
 
 test('registro ausente, de outra categoria ou negado não apaga arquivos', async () => {
@@ -325,15 +337,17 @@ test('registro ausente, de outra categoria ou negado não apaga arquivos', async
   }
 });
 
-test('URLs assinadas antigas e prefixo do mesmo bucket são normalizados para exclusão', async () => {
-  for (const [value, expected] of [
-    ['/media-images/congresso/foto.png', 'congresso/foto.png'],
-    ['https://project.supabase.co/storage/v1/object/sign/media-images/pasta/foto%20nova.jpg?token=expirado', 'pasta/foto nova.jpg'],
-    ['https://project.supabase.co/storage/v1/object/public/media-images/foto.jpg', 'foto.jpg'],
+test('URLs antigas e caminhos sem ownership confirmado removem cadastro e preservam arquivo', async () => {
+  for (const value of [
+    '/media-images/congresso/foto.png',
+    'https://project.supabase.co/storage/v1/object/sign/media-images/pasta/foto%20nova.jpg?token=expirado',
+    'https://project.supabase.co/storage/v1/object/public/media-images/foto.jpg',
   ]) {
     const { api, calls } = setup({ readResult: { data: { id: MEDIA, category_id: CATEGORY, imagem_url: value }, error: null } });
-    await api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA });
-    assert.equal(calls.find(([type]) => type === 'remove')[1][0], expected);
+    const result = await api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA });
+    assert.equal(result.deleted, true);
+    assert.equal(result.filePreserved, true);
+    assert.equal(calls.some(([type]) => type === 'remove'), false);
   }
 });
 
@@ -343,7 +357,7 @@ test('links externos ou de outro bucket removem só o cadastro, nunca o arquivo 
     'https://project.supabase.co/storage/v1/object/sign/event-images/foto.jpg?token=privado',
   ]) {
     const { api, calls } = setup({ readResult: { data: { id: MEDIA, category_id: CATEGORY, imagem_url: value }, error: null } });
-    assert.equal(await api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA }), true);
+    assert.equal((await api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA })).deleted, true);
     assert.equal(calls.filter(([type]) => type === 'remove').length, 0);
     assert.equal(calls.filter(([type]) => type === 'delete').length, 1);
   }
@@ -357,21 +371,19 @@ test('caminhos inválidos não são enviados ao Storage', async () => {
   }
 });
 
-test('falha no Storage preserva registro e não anuncia exclusão', async () => {
+test('falha na limpeza não restaura cadastro nem deixa foto publicada com arquivo apagado', async () => {
   for (const options of [{ removeThrow: true }, { removeResult: { error: { statusCode: '403', message: INTERNAL } } }]) {
     const { api, calls } = setup(options);
-    await assert.rejects(api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA }), (error) => {
-      friendly(error);
-      assert.match(error.message, /continua cadastrada/);
-      return true;
-    });
-    assert.equal(calls.filter(([type]) => type === 'delete').length, 0);
+    const result = await api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA });
+    assert.equal(result.deleted, true);
+    assert.equal(result.filePreserved, true);
+    assert.ok(calls.findIndex(([type]) => type === 'delete') < calls.findIndex(([type]) => type === 'remove'));
   }
 });
 
 test('arquivo já ausente permite repetir a exclusão do registro', async () => {
   const { api } = setup({ removeResult: { error: { statusCode: '404', message: INTERNAL } } });
-  assert.equal(await api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA }), true);
+  assert.equal((await api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA })).deleted, true);
 });
 
 test('DELETE sem linhas retornadas ou negado pelo banco não parece sucesso', async () => {
@@ -384,4 +396,200 @@ test('DELETE sem linhas retornadas ou negado pelo banco não parece sucesso', as
     const { api } = setup(options);
     await assert.rejects(api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA }), friendly);
   }
+});
+
+// Banco em memória somente na fronteira do SDK, para exercitar CAS e respostas perdidas.
+function replacementSetup(options = {}) {
+  const calls = [];
+  const oldPath = options.oldPath ?? `${USER}/${CATEGORY}/anterior.png`;
+  const rows = new Map([[MEDIA, { id: MEDIA, category_id: CATEGORY, imagem_url: oldPath }]]);
+  if (options.shared) rows.set(OTHER, { id: OTHER, category_id: OTHER, imagem_url: options.alias || oldPath });
+  let reads = 0, newPath;
+  const storage = {
+    async upload(objectPath, bytes, settings) {
+      calls.push(['upload', objectPath, settings]);
+      newPath = objectPath;
+      if (options.uploadThrow) throw new Error(INTERNAL);
+      return options.uploadResult ?? { data: { path: objectPath }, error: null };
+    },
+    async remove(paths) {
+      calls.push(['remove', Array.from(paths)]);
+      if (options.removeThrow) throw new Error(INTERNAL);
+      return { data: [], error: null };
+    },
+  };
+  const supabase = {
+    storage: { from(bucket) { assert.equal(bucket, 'media-images'); return storage; } },
+    from(table) {
+      assert.equal(table, 'media');
+      let operation = 'read', values;
+      const filters = [];
+      const matching = () => [...rows.values()].filter(row => filters.every(([key, value]) => row[key] === value));
+      const query = {
+        select() { return query; },
+        update(value) { operation = 'update'; values = value; calls.push(['update', value]); return query; },
+        delete() { operation = 'delete'; calls.push(['delete']); return query; },
+        eq(key, value) { filters.push([key, value]); calls.push(['eq', operation, key, value]); return query; },
+        async single() {
+          assert.equal(operation, 'read');
+          calls.push(['read']);
+          return { data: matching()[0] || null, error: null };
+        },
+        async maybeSingle() {
+          if (operation === 'read') {
+            reads += 1;
+            calls.push(['read']);
+            if (options.readFailAt?.includes(reads)) throw new Error(INTERNAL);
+            return { data: matching()[0] || null, error: null };
+          }
+          assert.equal(operation, 'update');
+          if (options.concurrentUpdate) rows.set(MEDIA, { ...rows.get(MEDIA), imagem_url: options.concurrentUpdate });
+          calls.push(['write', filters.map(item => [...item])]);
+          if (options.rejectUpdate) return { data: null, error: { code: '42501' }, status: 403 };
+          if (options.throwBeforeCommit) throw new Error(INTERNAL);
+          const row = matching()[0];
+          if (!row) return { data: null, error: null, status: 200 };
+          const saved = { ...row, ...values };
+          rows.set(row.id, saved);
+          if (options.throwAfterCommit) throw new Error(INTERNAL);
+          return { data: saved, error: null, status: 200 };
+        },
+        then(resolve, reject) {
+          if (operation === 'delete') {
+            if (options.concurrentDelete) rows.set(MEDIA, { ...rows.get(MEDIA), imagem_url: options.concurrentDelete });
+            const removed = matching();
+            removed.forEach(row => rows.delete(row.id));
+            calls.push(['deleted', filters.map(item => [...item])]);
+            if (options.deleteResponseLost) return Promise.reject(new Error(INTERNAL)).then(resolve, reject);
+            return Promise.resolve({ data: removed.map(row => ({ id: row.id })), error: null }).then(resolve, reject);
+          }
+          calls.push(['references']);
+          const data = [...rows.values()];
+          const response = options.referencesError ? { data: null, error: { message: INTERNAL } }
+            : { data, error: null, count: options.incompleteReferences ? data.length + 1 : data.length };
+          return Promise.resolve(response).then(resolve, reject);
+        },
+      };
+      return query;
+    },
+  };
+  const filename = path.join(__dirname, '..', 'src/services/supabaseMedia.js');
+  const { code } = babel.transformSync(fs.readFileSync(filename, 'utf8'), {
+    filename, configFile: false, babelrc: false, plugins: ['@babel/plugin-transform-modules-commonjs'],
+  });
+  const api = {};
+  vm.runInNewContext(code, {
+    exports: api, URL, Uint8Array, ArrayBuffer,
+    process: { env: { EXPO_PUBLIC_SUPABASE_URL: 'https://project.supabase.co' } },
+    require(name) {
+      if (name === '../lib/supabase') return { supabase };
+      if (name === '../utils/imageUploadData') return loadImageUploadData();
+      assert.equal(name, './supabaseAuth');
+      return { getAuthenticatedUser: async () => { calls.push(['auth']); return options.noUser ? null : { id: USER }; } };
+    },
+  }, { filename });
+  return { api, rows, calls, oldPath, newPath: () => newPath,
+    replace: (extra = {}) => api.replaceMedia({ categoryId: CATEGORY, mediaId: MEDIA, expectedPath: oldPath, asset: image, ...extra }) };
+}
+
+test('troca valida seleção, caminho esperado e sessão antes de enviar qualquer arquivo', async () => {
+  for (const input of [undefined, { categoryId: CATEGORY, mediaId: MEDIA },
+    { categoryId: 'categoria', mediaId: MEDIA, expectedPath: 'anterior.png', asset: image }]) {
+    const h = replacementSetup();
+    await assert.rejects(h.api.replaceMedia(input), friendly);
+    assert.equal(h.calls.length, 0);
+  }
+  const anonymous = replacementSetup({ noUser: true });
+  await assert.rejects(anonymous.replace(), /administrativa/);
+  assert.equal(anonymous.calls.some(([type]) => type === 'upload' || type === 'update'), false);
+  const stale = replacementSetup();
+  await assert.rejects(stale.replace({ expectedPath: 'imagem-antiga-desatualizada.png' }), /alterada ou removida/);
+  assert.equal(stale.calls.some(([type]) => type === 'upload'), false);
+});
+
+test('troca usa arquivo novo e UPDATE por ID, categoria e caminho esperado; limpa antigo depois de confirmar', async () => {
+  const h = replacementSetup();
+  const saved = await h.replace();
+  assert.equal(saved.id, MEDIA);
+  assert.equal(saved.imagem_url, h.newPath());
+  assert.notEqual(h.newPath(), h.oldPath);
+  assert.equal(h.calls.find(([type]) => type === 'upload')[2].upsert, false);
+  assert.deepEqual(h.calls.find(([type]) => type === 'write')[1], [
+    ['id', MEDIA], ['category_id', CATEGORY], ['imagem_url', h.oldPath],
+  ]);
+  assert.deepEqual(h.calls.filter(([type]) => type === 'remove').map(([, paths]) => paths), [[h.oldPath]]);
+  assert.ok(h.calls.findIndex(([type]) => type === 'write') < h.calls.findIndex(([type]) => type === 'references'));
+});
+
+test('concorrência não substitui a imagem mais recente e compensa somente o arquivo novo sem referências', async () => {
+  const newest = `${OTHER}/${CATEGORY}/mais-recente.png`;
+  const h = replacementSetup({ concurrentUpdate: newest });
+  await assert.rejects(h.replace(), /outro aparelho/);
+  assert.equal(h.rows.get(MEDIA).imagem_url, newest);
+  assert.deepEqual(h.calls.filter(([type]) => type === 'remove').map(([, paths]) => paths), [[h.newPath()]]);
+});
+
+test('resposta perdida após troca recupera registro sem remover sua nova imagem', async () => {
+  const h = replacementSetup({ throwAfterCommit: true });
+  const saved = await h.replace();
+  assert.equal(saved.imagem_url, h.newPath());
+  assert.equal(h.calls.filter(([type]) => type === 'update').length, 1);
+  assert.equal(h.calls.some(([type, paths]) => type === 'remove' && paths.includes(h.newPath())), false);
+});
+
+test('resposta incerta sem reconciliação preserva ambos os arquivos e não repete a troca', async () => {
+  const h = replacementSetup({ throwAfterCommit: true, readFailAt: [2] });
+  await assert.rejects(h.replace(), /Reabra a lista antes de reenviar/);
+  assert.equal(h.rows.get(MEDIA).imagem_url, h.newPath());
+  assert.equal(h.calls.some(([type]) => type === 'remove'), false);
+});
+
+test('troca preserva arquivos compartilhados, de outro dono e com referências incompletas ou negadas', async () => {
+  for (const options of [
+    { shared: true },
+    { shared: true, alias: `https://project.supabase.co/storage/v1/object/sign/media-images/${USER}/${CATEGORY}/anterior.png?token=antigo` },
+    { oldPath: `${OTHER}/${CATEGORY}/anterior.png` },
+    { oldPath: 'https://externo.example/anterior.png' },
+    { incompleteReferences: true },
+    { referencesError: true },
+  ]) {
+    const h = replacementSetup(options);
+    assert.equal((await h.replace()).imagem_url, h.newPath());
+    assert.equal(h.calls.some(([type]) => type === 'remove'), false);
+  }
+});
+
+test('falha de gravação ou upload na troca preserva imagem anterior', async () => {
+  for (const options of [{ rejectUpdate: true }, { throwBeforeCommit: true }, { uploadThrow: true }]) {
+    const h = replacementSetup(options);
+    await assert.rejects(h.replace(), friendly);
+    assert.equal(h.rows.get(MEDIA).imagem_url, h.oldPath);
+    assert.equal(h.calls.some(([type, paths]) => type === 'remove' && paths.includes(h.oldPath)), false);
+  }
+});
+
+test('DELETE concorrente com troca não remove a foto nova nem arquivos anteriores', async () => {
+  const newest = `${OTHER}/${CATEGORY}/mais-recente.png`;
+  const h = replacementSetup({ concurrentDelete: newest });
+  await assert.rejects(h.api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA }), /outro aparelho/);
+  assert.equal(h.rows.get(MEDIA).imagem_url, newest);
+  assert.equal(h.calls.some(([type]) => type === 'remove'), false);
+});
+
+test('DELETE com resposta perdida confirma ausência e preserva arquivo quando compartilhado', async () => {
+  for (const shared of [false, true]) {
+    const h = replacementSetup({ deleteResponseLost: true, shared });
+    const result = await h.api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA });
+    assert.equal(result.deleted, true);
+    assert.equal(result.filePreserved, shared);
+    assert.equal(h.rows.has(MEDIA), false);
+    assert.equal(h.calls.filter(([type]) => type === 'remove').length, shared ? 0 : 1);
+  }
+});
+
+test('exclusão com seleção desatualizada rejeita antes do DELETE e preserva a nova imagem', async () => {
+  const h = replacementSetup();
+  await assert.rejects(h.api.deleteMedia({ categoryId: CATEGORY, mediaId: MEDIA, expectedPath: 'foto-antiga-na-tela.png' }), /alterada em outro aparelho/);
+  assert.equal(h.rows.get(MEDIA).imagem_url, h.oldPath);
+  assert.equal(h.calls.some(([type]) => type === 'delete' || type === 'remove'), false);
 });

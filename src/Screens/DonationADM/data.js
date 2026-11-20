@@ -1,33 +1,9 @@
-export let donationCampaigns = [
-  {
-    id: 1,
-    title: "campanha do AGASALHO",
-    subtitle: "O FRIO NÃO ESPERA",
-    description: "AQUEÇA O INVERNO DE QUEM PRECISA",
-    imageUri: null,
-    image: require("../../../assets/img/banner_doacao_1.png"),
-  },
-  {
-    id: 2,
-    title: "campanha do AGASALHO",
-    subtitle: "O FRIO NÃO ESPERA",
-    description: "AQUEÇA O INVERNO DE QUEM PRECISA",
-    imageUri: null,
-    image: require("../../../assets/img/banner_doacao_2.png"),
-  },
-];
-
-export const getDonationCampaignSource = (campaign) =>
-  campaign?.imageUri ? { uri: campaign.imageUri } : campaign?.image || null;
-
-export const addDonationCampaign = (campaign) => {
-  donationCampaigns = [campaign, ...donationCampaigns];
-  return donationCampaigns;
+const initialImages = {
+  "agasalho-1": require("../../../assets/img/banner_doacao_1.png"),
+  "agasalho-2": require("../../../assets/img/banner_doacao_2.png"),
 };
 
-export const removeDonationCampaign = (id) => {
-  donationCampaigns = donationCampaigns.filter(
-    (campaign) => campaign.id !== id,
-  );
-  return donationCampaigns;
-};
+export function getDonationCampaignSource(campaign) {
+  if (campaign?.imageUrl) return { uri: campaign.imageUrl };
+  return Object.hasOwn(initialImages, campaign?.asset_key) ? initialImages[campaign.asset_key] : null;
+}

@@ -8,23 +8,26 @@ import TitleComponent from "../../components/titles";
 import ButtonForm from "../../components/button/buttonsForm";
 import styles from "./style";
 import { createPrayerRequest } from "../../services/supabaseData";
+import { listDonationCampaigns } from "../../services/supabaseDonations";
+import useScreenData, { PUBLIC_CONTENT_REFRESH_MS } from "../../hooks/useScreenData";
 import showMessage from "../../utils/showMessage";
-import {
-  donationCampaigns,
-  getDonationCampaignSource,
-} from "../DonationADM/data";
+import { getDonationCampaignSource } from "../DonationADM/data";
 
 const normalizeSearch = (value) => String(value ?? "").normalize("NFD")
   .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").trim();
 
 const DonationsRequests = () => {
+  const { data: campaigns, loading: campaignsLoading, errorMessage: campaignsError } = useScreenData(listDonationCampaigns, {
+    refreshMs: PUBLIC_CONTENT_REFRESH_MS,
+    backgroundRefresh: true,
+  });
   const [search, setSearch] = useState("");
   const [nome, setNome] = useState("");
   const [pedido, setPedido] = useState("");
   const [loading, setLoading] = useState(false);
   const sending = useRef(false);
   const query = normalizeSearch(search);
-  const filteredCampaigns = donationCampaigns.filter((campaign) =>
+  const filteredCampaigns = campaigns.filter((campaign) =>
     normalizeSearch(`${campaign.title || ""} ${campaign.subtitle || ""} ${campaign.description || ""}`).includes(query),
   );
 
@@ -59,18 +62,20 @@ const DonationsRequests = () => {
       >
         <TitleComponent title="DOAÇÕES" />
 
-        {filteredCampaigns.map((campaign) => (
-          <View key={campaign.id} style={styles.banner}>
-            <Image
-              source={getDonationCampaignSource(campaign)}
-              style={styles.image}
-            />
-          </View>
-        ))}
-        {filteredCampaigns.length === 0 && (
+        {filteredCampaigns.map((campaign) => {
+          const source = getDonationCampaignSource(campaign);
+          return (
+            <View key={campaign.id} style={styles.banner}>
+              {source ? <Image source={source} style={styles.image} accessibilityLabel={campaign.title} />
+                : <Text>Imagem da campanha indisponível.</Text>}
+            </View>
+          );
+        })}
+        {(campaignsLoading || campaignsError || filteredCampaigns.length === 0) && (
           <View style={styles.formSection}>
             <Text accessibilityLiveRegion="polite">
-              {query && donationCampaigns.length ? "Nenhuma campanha encontrada." : "Nenhuma campanha disponível."}
+              {campaignsLoading ? "Carregando campanhas..." : campaignsError
+                || (query && campaigns.length ? "Nenhuma campanha encontrada." : "Nenhuma campanha disponível.")}
             </Text>
           </View>
         )}

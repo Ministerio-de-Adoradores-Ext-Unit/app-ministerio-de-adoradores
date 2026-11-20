@@ -8,10 +8,16 @@ import Animated, {
 import img1 from "../../../assets/img/ctn_primeiro.png";
 import img2 from "../../../assets/img/Rectangle 1.png";
 import img3 from "../../../assets/img/ctn_terceiro.png";
+import useScreenData, { PUBLIC_CONTENT_REFRESH_MS } from "../../hooks/useScreenData";
+import { listHomeCarouselMedia } from "../../services/supabaseCarousel";
 
-const DATA = [{ image: img1 }, { image: img2 }, { image: img3 }];
+const DEFAULT_BANNERS = [
+  { id: "default-1", image: img1 },
+  { id: "default-2", image: img2 },
+  { id: "default-3", image: img3 },
+];
 
-const Carousel = () => {
+function CarouselTrack({ banners }) {
   const { width } = useWindowDimensions();
   const BANNER_WIDTH = width * 0.8;
   const HORIZONTAL_MARGIN = width * 0.1;
@@ -36,8 +42,9 @@ const Carousel = () => {
   ]);
 
   useEffect(() => {
+    if (banners.length < 2) return;
     const timeoutId = setTimeout(() => {
-      const nextIndex = (activeBanner + 1) % DATA.length;
+      const nextIndex = (activeBanner + 1) % banners.length;
 
       flatListRef.current?.scrollToIndex({
         index: nextIndex,
@@ -46,14 +53,15 @@ const Carousel = () => {
     }, 3000);
 
     return () => clearTimeout(timeoutId);
-  }, [activeBanner]);
+  }, [activeBanner, banners.length]);
 
   return (
-    <View>
+    <View style={{ width }}>
       <FlatList
         ref={flatListRef}
-        data={DATA}
-        keyExtractor={(item, index) => String(index)}
+        data={banners}
+        keyExtractor={(item) => item.id}
+        getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
         renderItem={({ item }) => (
           <View
             style={{
@@ -75,8 +83,7 @@ const Carousel = () => {
             />
           </View>
         )}
-        style={{ paddingTop: 20 }}
-        contentContainerStyle={{ paddingHorizontal: HORIZONTAL_MARGIN / 2 }}
+        style={{ width, paddingTop: 20 }}
         pagingEnabled
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -84,7 +91,7 @@ const Carousel = () => {
       />
 
       <FlatList
-        data={DATA}
+        data={banners}
         renderItem={({ index }) => (
           <Animated.View
             layout={Layout}
@@ -101,11 +108,22 @@ const Carousel = () => {
         )}
         horizontal
         scrollEnabled={false}
-        keyExtractor={(item, index) => String(index)}
+        keyExtractor={(item) => item.id}
         style={{ marginTop: 16, alignSelf: "center" }}
         contentContainerStyle={{ paddingBottom: 10 }}
       />
     </View>
   );
-};
-export default Carousel;
+}
+
+export default function Carousel() {
+  const { data } = useScreenData(listHomeCarouselMedia, {
+    refreshMs: PUBLIC_CONTENT_REFRESH_MS, backgroundRefresh: true,
+  });
+  const banners = data.length
+    ? data.map(({ id, imageUrl }) => ({ id, image: { uri: imageUrl } }))
+    : DEFAULT_BANNERS;
+
+  // Reinicia o índice quando as imagens da lista mudam.
+  return <CarouselTrack key={banners.map(({ id }) => id).join(",")} banners={banners} />;
+}

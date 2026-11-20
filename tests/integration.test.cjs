@@ -8,7 +8,7 @@ const babel = require('@babel/core');
 const { loadProjectEnv, parseEnvFiles } = require('@expo/env');
 
 // Executa os módulos reais; simula somente a fronteira com banco, navegação e SO.
-function load(file, dependencies, env = { EXPO_PUBLIC_SUPABASE_URL: 'https://project.supabase.co' }) {
+function load(file, dependencies, env = { EXPO_PUBLIC_SUPABASE_URL: 'https://project.supabase.co' }, globals = {}) {
   const filename = path.join(__dirname, '..', file);
   const { code } = babel.transformSync(fs.readFileSync(filename, 'utf8'), {
     filename, configFile: false, babelrc: false,
@@ -22,6 +22,7 @@ function load(file, dependencies, env = { EXPO_PUBLIC_SUPABASE_URL: 'https://pro
     },
     URL, process: { env },
     setTimeout, clearTimeout, setInterval, clearInterval,
+    ...globals,
   }, { filename });
   return exports;
 }
@@ -117,7 +118,7 @@ test('ausência de configuração continua bloqueando o cliente com mensagem exp
   }
 });
 
-function setup({ rows = [], error = null, user = { id: 'admin' }, authError = null, missing = '' } = {}) {
+function setup({ rows = [], error = null, user = { id: 'admin' }, authError = null, missing = '', now = Date.now } = {}) {
   const calls = [];
   const query = {
     select: (...args) => {
@@ -126,6 +127,14 @@ function setup({ rows = [], error = null, user = { id: 'admin' }, authError = nu
     },
     eq: (...args) => {
       calls.push(["eq", ...args]);
+      return query;
+    },
+    neq: (...args) => {
+      calls.push(["neq", ...args]);
+      return query;
+    },
+    limit: (...args) => {
+      calls.push(["limit", ...args]);
       return query;
     },
     order: (...args) => {
@@ -160,7 +169,7 @@ function setup({ rows = [], error = null, user = { id: 'admin' }, authError = nu
     calls,
     api: load("src/services/supabaseData.js", {
       "../lib/supabase": { supabase },
-    }),
+    }, undefined, { Date: { now } }),
   };
 }
 
@@ -243,6 +252,19 @@ test("falha na consulta pública é diferente de resultado vazio", async () => {
     /offline/,
   );
   assert.equal((await setup().api.listEvents()).length, 0);
+});
+
+test("a lista pública usa uma foto por categoria e mantém categorias sem foto", async () => {
+  const { api, calls } = setup({ rows: [
+    { id: "congresso", categoria: "Congresso", media: [{ imagem_url: "congresso/foto-nova.png" }] },
+    { id: "culto", categoria: "Culto", media: [] },
+  ] });
+  const list = await api.listGalleryCategoriesWithImages("carrossel");
+  assert.equal(list[0].imageUrl, "https://signed.example/congresso/foto-nova.png");
+  assert.equal(list[1].imageUrl, null);
+  assert.ok(calls.some(([action, field, value]) => action === "neq" && field === "id" && value === "carrossel"));
+  assert.ok(calls.some(([action, count, options]) => action === "limit" && count === 1 && options.referencedTable === "media"));
+  assert.equal(calls.filter(([action]) => action === "sign").length, 1);
 });
 
 test("eventos públicos preservam seus parâmetros e usam o bucket de eventos", async () => {
@@ -359,18 +381,63 @@ test("arquivo quebrado não oculta as outras mídias; renova URL antiga do mesmo
   assert.equal(calls.filter(([type]) => type === "sign").length, 3);
 });
 
+test("consultas concorrentes de uma foto compartilham assinatura até o limite de validade", async () => {
+  let timestamp = 1_000;
+  const { api, calls } = setup({ now: () => timestamp });
+  const signatures = () => calls.filter(([type]) => type === "sign").length;
+  const path = "congresso/foto.jpg";
+  const expected = "https://signed.example/congresso/foto.jpg";
+  assert.deepEqual(await Promise.all([
+    api.resolvePrivateImageUrl(`/media-images/${path}`, "media-images"),
+    api.resolvePrivateImageUrl(path, "media-images"),
+  ]), [expected, expected]);
+  assert.equal(signatures(), 1);
+
+  timestamp += 49 * 60 * 1000;
+  await api.resolvePrivateImageUrl(path, "media-images");
+  assert.equal(signatures(), 1);
+  await api.resolvePrivateImageUrl(path, "event-images");
+  assert.equal(signatures(), 2);
+  timestamp += 60 * 1000;
+  assert.equal(await api.resolvePrivateImageUrl(path, "media-images"), expected);
+  assert.equal(signatures(), 3);
+});
+
+test("falhas de assinatura podem ser tentadas novamente e uma troca usa caminho novo", async () => {
+  const { api, calls } = setup({ missing: "ausente.jpg" });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await assert.rejects(api.resolvePrivateImageUrl("ausente.jpg", "media-images"), /Arquivo ausente/);
+  }
+  assert.equal(await api.resolvePrivateImageUrl("nova.jpg", "media-images"), "https://signed.example/nova.jpg");
+  assert.deepEqual(calls.filter(([type]) => type === "sign").map(([, , path]) => path), [
+    "ausente.jpg", "ausente.jpg", "nova.jpg",
+  ]);
+});
+
+test("cache de URLs assinadas libera caminhos antigos quando há muitas imagens", async () => {
+  const { api, calls } = setup();
+  for (let index = 0; index <= 256; index++) {
+    await api.resolvePrivateImageUrl(`imagem-${index}.jpg`, "media-images");
+  }
+  await api.resolvePrivateImageUrl("imagem-256.jpg", "media-images");
+  await api.resolvePrivateImageUrl("imagem-0.jpg", "media-images");
+  const paths = calls.filter(([type]) => type === "sign").map(([, , path]) => path);
+  assert.equal(paths.filter((path) => path === "imagem-256.jpg").length, 1);
+  assert.equal(paths.filter((path) => path === "imagem-0.jpg").length, 2);
+});
+
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 function hookHarness(loader, options = {}) {
-  let state, focus, cleanup, resume, auth;
+  let state, focus, cleanup, onStatusChange, auth, onTick;
   const removed = [];
   const hook = load("src/hooks/useScreenData.js", {
     react: {
       useState: (initial) => {
-        state = initial;
+        state ??= initial;
         return [
           state,
           (value) => {
-            state = value;
+            state = typeof value === "function" ? value(state) : value;
           },
         ];
       },
@@ -379,7 +446,7 @@ function hookHarness(loader, options = {}) {
     "react-native": {
       AppState: {
         addEventListener: (_, fn) => {
-          resume = fn;
+          onStatusChange = fn;
           return { remove: () => removed.push("app") };
         },
       },
@@ -403,6 +470,9 @@ function hookHarness(loader, options = {}) {
         },
       },
     },
+  }, undefined, {
+    setInterval: (fn) => { onTick = fn; return 1; },
+    clearInterval: () => { onTick = undefined; },
   }).default;
   hook(loader, options);
   return {
@@ -411,7 +481,15 @@ function hookHarness(loader, options = {}) {
       cleanup = focus();
     },
     blur: () => cleanup(),
-    resume: () => resume("active"),
+    resume: () => onStatusChange("active"),
+    background: () => onStatusChange("background"),
+    tick: () => onTick?.(),
+    changeLoader: (nextLoader) => {
+      cleanup();
+      const beforeFocus = hook(nextLoader, options);
+      cleanup = focus();
+      return beforeFocus;
+    },
     auth: (event) => auth(event),
     removed,
   };
@@ -467,4 +545,67 @@ test("logout limpa dados e invalida consulta anterior imediatamente", async () =
   assert.equal(h.state().data.length, 0);
   h.blur();
   assert.deepEqual(h.removed, ["app", "auth"]);
+});
+
+test("atualização silenciosa mantém o conteúdo e não duplica consultas em andamento", async () => {
+  const pending = [];
+  const h = hookHarness(() => new Promise((resolve, reject) => pending.push({ resolve, reject })), {
+    backgroundRefresh: true, refreshMs: 30_000,
+  });
+  h.focus();
+  assert.equal(h.state().loading, true);
+  pending[0].resolve(["foto antiga"]);
+  await flush();
+
+  h.tick();
+  h.tick();
+  assert.equal(pending.length, 2);
+  assert.equal(h.state().loading, false);
+  assert.equal(h.state().data[0], "foto antiga");
+  pending[1].reject(new Error("Offline"));
+  await flush();
+  assert.equal(h.state().data[0], "foto antiga");
+  assert.equal(h.state().errorMessage, "");
+
+  h.tick();
+  h.background();
+  h.tick();
+  assert.equal(pending.length, 3);
+  h.resume();
+  pending[3].resolve(["foto nova"]);
+  await flush();
+  pending[2].resolve(["foto obsoleta"]);
+  await flush();
+  assert.equal(h.state().data[0], "foto nova");
+
+  h.tick();
+  pending[4].resolve([]);
+  await flush();
+  assert.equal(h.state().data.length, 0);
+  h.blur();
+  h.tick();
+  assert.equal(pending.length, 5);
+});
+
+test("erro inicial aparece e troca de categoria não mostra dados da lista anterior", async () => {
+  let nextResult = new Error("Primeira consulta falhou");
+  const h = hookHarness(async () => {
+    if (nextResult instanceof Error) throw nextResult;
+    return nextResult;
+  }, { backgroundRefresh: true, refreshMs: 30_000 });
+  h.focus();
+  await flush();
+  assert.equal(h.state().errorMessage, "Primeira consulta falhou");
+  nextResult = ["categoria antiga"];
+  h.tick();
+  await flush();
+  assert.equal(h.state().data[0], "categoria antiga");
+  const beforeFocus = h.changeLoader(async () => ["categoria nova"]);
+  assert.equal(beforeFocus.data.length, 0);
+  assert.equal(beforeFocus.loading, true);
+  assert.equal(h.state().data.length, 0);
+  await flush();
+  assert.equal(h.state().data[0], "categoria nova");
+  assert.equal(h.state().errorMessage, "");
+  h.blur();
 });

@@ -3,18 +3,32 @@ import { AppState } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../lib/supabase";
 
+export const PUBLIC_CONTENT_REFRESH_MS = 30_000;
+
+const loadingState = (loader) => ({ loader, data: [], loading: true, errorMessage: "" });
+
 // O loader deve ser uma função estável (ou memorizada com useCallback).
-export default function useScreenData(loader, { authenticated = false, refreshMs = 0 } = {}) {
-  const [state, setState] = useState({ loader, data: [], loading: true, errorMessage: "" });
+export default function useScreenData(loader, {
+  authenticated = false, refreshMs = 0, backgroundRefresh = false,
+} = {}) {
+  const [state, setState] = useState(loadingState(loader));
+  const keepData = backgroundRefresh && !authenticated;
 
   useFocusEffect(useCallback(() => {
     let active = true;
+    let foreground = !AppState.currentState || AppState.currentState === "active";
     let requestId = 0;
+    let loading = false;
     let authTimer;
 
     const load = async () => {
       const id = ++requestId;
-      setState({ loader, data: [], loading: true, errorMessage: "" });
+      loading = true;
+      if (keepData) {
+        setState((previous) => previous.loader === loader ? previous : loadingState(loader));
+      } else {
+        setState(loadingState(loader));
+      }
       try {
         const data = await loader();
         if (active && id === requestId) {
@@ -22,28 +36,39 @@ export default function useScreenData(loader, { authenticated = false, refreshMs
         }
       } catch (error) {
         if (active && id === requestId) {
-          setState({ loader, data: [], loading: false,
-            errorMessage: error.message || "Não foi possível carregar os dados. Volte à tela para tentar novamente." });
+          const failed = { loader, data: [], loading: false,
+            errorMessage: error?.message || "Não foi possível carregar os dados. Volte à tela para tentar novamente." };
+          if (keepData) {
+            setState((previous) => previous.loader === loader && !previous.loading && !previous.errorMessage
+              ? previous : failed);
+          } else {
+            setState(failed);
+          }
         }
+      } finally {
+        if (id === requestId) loading = false;
       }
     };
 
-    load();
+    if (foreground) load();
     const appListener = AppState.addEventListener("change", (status) => {
-      if (status === "active") load();
+      foreground = status === "active";
+      if (foreground) load();
     });
     const authListener = authenticated
       ? supabase.auth.onAuthStateChange((event) => {
           if (event === "INITIAL_SESSION") return;
           // Invalida respostas em trânsito e limpa dados da sessão anterior.
           ++requestId;
-          setState({ loader, data: [], loading: true, errorMessage: "" });
+          setState(loadingState(loader));
           clearTimeout(authTimer);
           // Consultas fora do callback evitam disputar o lock do Auth.
           authTimer = setTimeout(load, 0);
         })
       : null;
-    const timer = refreshMs ? setInterval(load, refreshMs) : null;
+    const timer = refreshMs ? setInterval(() => {
+      if (active && foreground && !loading) load();
+    }, refreshMs) : null;
 
     return () => {
       active = false;
@@ -53,10 +78,10 @@ export default function useScreenData(loader, { authenticated = false, refreshMs
       appListener.remove();
       authListener?.data.subscription.unsubscribe();
     };
-  }, [loader, authenticated, refreshMs]));
+  }, [loader, authenticated, refreshMs, keepData]));
 
   // Uma categoria nova nunca recebe os dados da categoria anterior.
   return state.loader === loader
     ? state
-    : { data: [], loading: true, errorMessage: "" };
+    : loadingState(loader);
 }

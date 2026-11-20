@@ -13,6 +13,7 @@ import NavBar from "../../components/navBar";
 import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/Feather";
 import { listMediaCategories } from "../../services/supabaseData";
+import { HOME_CAROUSEL_CATEGORY } from "../../services/supabaseCarousel";
 import useScreenData from "../../hooks/useScreenData";
 import PopUp from "./PopUp";
 
@@ -22,7 +23,9 @@ export default function MidiaScreen() {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const categoriesState = useScreenData(listMediaCategories);
-  const categories = categoriesState.data;
+  const categories = useMemo(() => categoriesState.data.filter(
+    ({ id }) => id !== HOME_CAROUSEL_CATEGORY.id,
+  ), [categoriesState.data]);
   const { loading, errorMessage } = categoriesState;
 
   const filteredCategories = useMemo(() => {

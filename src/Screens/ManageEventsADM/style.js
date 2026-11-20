@@ -170,6 +170,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#DADADA",
     marginBottom: 12,
   },
+  removeImageButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    marginBottom: 12,
+    paddingVertical: 4,
+  },
+  removeImageText: { color: "#0B233E", fontSize: 13, marginBottom: 4 },
   modalActions: {
     flexDirection: "row",
     alignItems: "center",

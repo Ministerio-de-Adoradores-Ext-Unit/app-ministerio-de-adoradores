@@ -86,25 +86,57 @@ async function failSave(newPath) {
     : "Não foi possível salvar o evento. Verifique seu acesso e tente novamente.");
 }
 
-export async function saveEvent({ id, title, dateTime, local, imageAsset } = {}) {
+async function cleanPreviousImage(value, userId, eventId) {
+  // Só arquivos canônicos enviados por esta conta podem ser limpos automaticamente.
+  if (typeof value !== "string" || !value.startsWith(`${userId}/${eventId}/`)
+    || /[\\\x00-\x1f:?#%]/.test(value) || value.split("/").some((part) => !part || part === "." || part === "..")) return;
+  try {
+    const references = await supabase.from("events").select("id, imagem_url", { count: "exact" });
+    if (!references || references.error || !Array.isArray(references.data)
+      || !Number.isInteger(references.count) || references.data.length !== references.count) return;
+    // Links legados podem ser aliases do mesmo arquivo: na dúvida, preserva.
+    if (references.data.some((row) => {
+      if (row.imagem_url == null) return false;
+      if (typeof row.imagem_url !== "string" || /^https?:/i.test(row.imagem_url) || row.imagem_url.includes("%")) return true;
+      const normalized = row.imagem_url.replace(/^\/+/, "").replace(/^event-images\//, "");
+      return normalized === value;
+    })) return;
+    await removeNewImage(value);
+  } catch {
+    // A mudança no evento já foi confirmada; manter arquivo antigo é seguro.
+  }
+}
+
+export async function saveEvent({ id, title, dateTime, local, imageAsset, removeImage = false, expectedImagePath } = {}) {
   const editing = id !== undefined && id !== null;
   if (editing && !UUID.test(id || "")) throw new Error("Escolha um evento válido para editar.");
+  if (typeof removeImage !== "boolean" || (removeImage && (!editing || imageAsset != null))) {
+    throw new Error("Escolha entre trocar ou remover a capa de um evento existente.");
+  }
+  if (expectedImagePath !== undefined && expectedImagePath !== null && typeof expectedImagePath !== "string") {
+    throw new Error("Reabra o evento antes de alterar sua capa.");
+  }
   const values = eventValues(title, dateTime, local);
   const image = imageAsset == null ? null : await prepareImageAsset(imageAsset);
   const user = await requireUser();
   const eventId = editing ? id : newEventId();
 
+  let previous;
   if (editing) {
-    let previous;
     try {
       previous = await readEvent(eventId);
     } catch {
       throw new Error("Não foi possível carregar o evento para edição. Reabra a lista e tente novamente.");
     }
     if (!previous) throw new Error("Este evento não está mais disponível para edição. Reabra a lista.");
+    if ((image || removeImage) && expectedImagePath !== undefined
+      && previous.imagem_url !== expectedImagePath) {
+      throw new Error("A capa foi alterada em outro aparelho. Reabra o evento antes de trocar ou remover a imagem.");
+    }
   } else {
     values.imagem_url = null;
   }
+  if (removeImage) values.imagem_url = null;
 
   let newPath = null;
   if (image) {
@@ -130,15 +162,23 @@ export async function saveEvent({ id, title, dateTime, local, imageAsset } = {})
 
   let result;
   try {
-    const query = editing
+    let query = editing
       ? supabase.from("events").update(values).eq("id", eventId)
       : supabase.from("events").insert({ id: eventId, ...values });
+    if (editing && (image || removeImage)) {
+      query = previous.imagem_url == null
+        ? query.is("imagem_url", null)
+        : query.eq("imagem_url", previous.imagem_url);
+    }
     result = await query.select(COLUMNS).single();
   } catch {
     // Uma resposta perdida pode acontecer depois de o banco já ter gravado.
   }
 
-  if (!result?.error && !(result?.status >= 400) && matches(result?.data, eventId, values)) return result.data;
+  if (!result?.error && !(result?.status >= 400) && matches(result?.data, eventId, values)) {
+    if (editing && (image || removeImage)) await cleanPreviousImage(previous.imagem_url, user.id, eventId);
+    return result.data;
+  }
   if (rejected(result)) return failSave(newPath);
 
   let confirmed;
@@ -148,7 +188,10 @@ export async function saveEvent({ id, title, dateTime, local, imageAsset } = {})
     // Não remover a nova capa sem saber se o registro chegou a referenciá-la.
     throw new Error(UNCONFIRMED);
   }
-  if (matches(confirmed, eventId, values)) return confirmed;
+  if (matches(confirmed, eventId, values)) {
+    if (editing && (image || removeImage)) await cleanPreviousImage(previous.imagem_url, user.id, eventId);
+    return confirmed;
+  }
   if (newPath && confirmed?.imagem_url === newPath) throw new Error(UNCONFIRMED);
   return failSave(newPath);
 }

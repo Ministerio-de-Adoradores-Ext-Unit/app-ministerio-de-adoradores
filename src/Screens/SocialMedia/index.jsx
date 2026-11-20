@@ -12,7 +12,7 @@ import {
   createEventRegistration,
   listEvents,
 } from "../../services/supabaseData";
-import useScreenData from "../../hooks/useScreenData";
+import useScreenData, { PUBLIC_CONTENT_REFRESH_MS } from "../../hooks/useScreenData";
 import showMessage from "../../utils/showMessage";
 
 const normalizeSearch = (value) => String(value ?? "").normalize("NFD")
@@ -26,7 +26,9 @@ const SocialMedia = () => {
   const [eventId, setEventId] = useState("");
   const [loading, setLoading] = useState(false);
   const sending = useRef(false);
-  const { data: events, loading: eventsLoading, errorMessage } = useScreenData(listEvents);
+  const { data: events, loading: eventsLoading, errorMessage } = useScreenData(listEvents, {
+    refreshMs: PUBLIC_CONTENT_REFRESH_MS, backgroundRefresh: true,
+  });
   const selectedEventId = events.some((event) => event.id === eventId) ? eventId : "";
   const query = normalizeSearch(search);
   const filteredEvents = events.filter((event) =>

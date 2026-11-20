@@ -6,6 +6,7 @@ import Home from "../Screens/Home/index";
 import DonationsRequests from "../Screens/DonationsRequests/index";
 import SocialMedia from "../Screens/SocialMedia";
 import MidiaScreen from "../Screens/MidiaScreen/index";
+import CarouselADM from "../Screens/CarouselADM/index";
 import LoginScreen from "../Screens/Login/index";
 import AdminScreen from "../Screens/AdminScreen/index";
 import PrayerRequestsADM from "../Screens/PrayerRequestsADM/index";
@@ -19,6 +20,7 @@ import withAuthenticatedScreen from "./withAuthenticatedScreen";
 const Stack = createNativeStackNavigator();
 const AuthenticatedAdmin = withAuthenticatedScreen(AdminScreen);
 const AuthenticatedMedia = withAuthenticatedScreen(MidiaScreen);
+const AuthenticatedCarousel = withAuthenticatedScreen(CarouselADM);
 const AuthenticatedPrayers = withAuthenticatedScreen(PrayerRequestsADM);
 const AuthenticatedParticipations = withAuthenticatedScreen(ParticipacoesADM);
 const AuthenticatedEvents = withAuthenticatedScreen(ManageEventsADM);
@@ -37,6 +39,7 @@ const StackN = () => {
       <Stack.Screen name="DonationsRequests" component={DonationsRequests} />
       <Stack.Screen name="SocialMedia" component={SocialMedia} />
       <Stack.Screen name="MidiaScreen" component={AuthenticatedMedia} />
+      <Stack.Screen name="CarouselADM" component={AuthenticatedCarousel} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="AdminScreen" component={AuthenticatedAdmin} />
       <Stack.Screen name="PrayerRequestsADM" component={AuthenticatedPrayers} />

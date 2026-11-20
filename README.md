@@ -4,18 +4,16 @@ Aplicativo em Expo/React Native com integração ao Supabase.
 
 ## Baixar e instalar no Android
 
-[**Baixar APK — Ministério de Adoradores 1.0.0**](https://github.com/Ministerio-de-Adoradores-Ext-Unit/app-ministerio-de-adoradores/releases/download/v1.0.0-teste.1/Ministerio-de-Adoradores-1.0.0.apk)
+[**Baixar o APK na página de versões**](https://github.com/Ministerio-de-Adoradores-Ext-Unit/app-ministerio-de-adoradores/releases)
 
 Versão de testes para Android 7.0 ou posterior.
 
-1. Abra o link acima no celular e baixe o arquivo `.apk`.
+1. Abra o link acima no celular, selecione a versão mais recente e baixe o arquivo `.apk` em **Assets**.
 2. Abra o arquivo e, se o Android solicitar, autorize a instalação pelo aplicativo usado para baixar.
-3. Toque em **Instalar** e abra o app.
+3. Toque em **Instalar** ou **Atualizar** e abra o app.
 
 Não precisa de Expo Go, QR Code ou computador ligado. O acesso aos dados e os
 envios precisam de internet. A área administrativa usa a conta existente da equipe.
-
-[Ver versões e notas de teste](https://github.com/Ministerio-de-Adoradores-Ext-Unit/app-ministerio-de-adoradores/releases).
 
 ## Executar
 
@@ -91,8 +89,9 @@ somente a responsável pelo projeto deve criar outras contas no painel.
 
 Em Mídia, as categorias e fotos vêm do Supabase. O pop-up envia as imagens ao
 bucket privado `media-images`, grava o caminho e o ID da categoria em `media`
-e recarrega os registros depois de salvar ou apagar. A área pública usa os mesmos
-registros. Imagens de até 10 MB são aceitas; falhas parciais mantêm as imagens
+e recarrega os registros depois de salvar, trocar ou apagar. A lista pública
+mostra a foto mais recente de cada categoria, além da galeria completa. Imagens
+de até 10 MB são aceitas. Falhas parciais mantêm as imagens
 pendentes para nova tentativa e não são anunciadas como sucesso.
 
 Em Configurações, Salvar senha confirma a sessão, reautentica a senha atual e
@@ -104,16 +103,29 @@ vai para o bucket privado `event-images`. As telas públicas e o Participe leem 
 mesmos registros. Data e horário são salvos sem converter a seleção local para
 UTC. O seletor existente continua nativo no Android/iOS e possui entrada de
 data/hora no navegador. Título, data/hora e local são obrigatórios.
+A capa pode ser trocada ou retirada ao editar. Retirar a capa mantém o evento e
+suas inscrições.
 
-A pesquisa pública recebe o texto do cabeçalho e filtra os eventos, categorias e
-opções de inscrição já carregados. Em Doações, filtra somente as campanhas locais;
-não consulta uma tabela de campanhas inexistente nem interfere no pedido de oração.
+A pesquisa pública filtra eventos, categorias, opções de inscrição e campanhas
+já carregados. O formulário de oração preserva os campos quando a lista de
+campanhas atualiza.
 
-A tela de campanhas de doação ainda usa o estado local criado no design.
-O banco existente não tem uma tabela de campanhas nem um bucket destinado a
-elas. A conexão dessa tela e dos banners públicos depende dessa estrutura ser
-preparada pela responsável pelo banco; esta entrega não cria tabelas, buckets
-ou políticas de acesso para campanhas.
+As campanhas de doação vêm da tabela `donation_campaigns` nos dois lados do
+app. A migração em `supabase/migrations/` cadastra os dois banners originais
+uma vez. O administrador pode publicar uma campanha, editar seu título,
+trocar a foto ou excluir a campanha. Arquivos novos ficam em `media-images`,
+no prefixo `donations/`, com um caminho diferente a cada troca de foto.
+A migração já foi aplicada ao projeto Supabase da equipe. Ao usar outro projeto,
+aplique-a antes de abrir as telas de Doações.
+
+No painel administrativo, **Carrossel** permite adicionar, trocar e remover as fotos
+exibidas na Home. A primeira gravação prepara uma categoria própria no cadastro
+de mídias e usa o bucket `media-images` já configurado. Enquanto essa categoria
+estiver sem fotos, a Home mostra os banners padrão. A Home exibe o mapa
+interativo e permite abrir o endereço no Google Maps.
+
+As telas públicas consultam o Supabase ao abrir ou retomar o aplicativo. Enquanto
+estão visíveis, verificam novas publicações a cada 30 segundos com internet.
 
 Arquivos desta integração:
 
@@ -124,6 +136,8 @@ Arquivos desta integração:
   e `src/utils/imageUploadData.js` (preparação de imagem compartilhada com mídia).
 - Pesquisa: `src/components/header/searchHeader.jsx`, `src/Screens/EventsAndMedia/index.jsx`,
   `src/Screens/SocialMedia/index.jsx` e `src/Screens/DonationsRequests/index.jsx`.
+- Campanhas e atualização pública: `src/Screens/DonationADM/`,
+  `src/services/supabaseDonations.js`, `src/hooks/useScreenData.js` e `supabase/migrations/`.
 - Rotas e confirmações: `src/Navigation/StackN.jsx` e `src/utils/confirmAction.js`.
 - Dependências e execução: `package.json`, `package-lock.json` e este `README.md`.
 - Verificações: `tests/integration.test.cjs`, `tests/feedback.test.cjs`,

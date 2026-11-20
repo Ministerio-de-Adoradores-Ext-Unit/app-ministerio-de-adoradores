@@ -1,5 +1,10 @@
 import { supabase } from "../lib/supabase";
 
+const IMAGE_URL_EXPIRY_SECONDS = 60 * 60;
+const IMAGE_URL_CACHE_MS = 50 * 60 * 1000;
+const IMAGE_URL_CACHE_LIMIT = 256;
+const signedImageUrls = new Map();
+
 const throwIfError = (error) => {
   if (error) {
     throw error;
@@ -97,6 +102,23 @@ export async function listMediaCategories() {
   return data ?? [];
 }
 
+export async function listGalleryCategoriesWithImages(excludedCategoryId) {
+  const { data, error } = await supabase.from("media_categories")
+    .select("id, categoria, created_at, media(imagem_url)")
+    .neq("id", excludedCategoryId)
+    .order("categoria", { ascending: true })
+    .order("data", { referencedTable: "media", ascending: false, nullsFirst: false })
+    .order("created_at", { referencedTable: "media", ascending: false })
+    .order("id", { referencedTable: "media", ascending: false })
+    .limit(1, { referencedTable: "media" });
+
+  throwIfError(error);
+  return withImageUrls((data ?? []).map(({ media, ...category }) => ({
+    ...category,
+    imagem_url: media?.[0]?.imagem_url,
+  })), "media-images");
+}
+
 async function requireSession() {
   const { data, error } = await supabase.auth.getUser();
   if (error?.name === "AuthSessionMissingError" || (!error && !data?.user)) {
@@ -114,8 +136,17 @@ function normalizeStoragePath(value, bucket) {
     : normalized;
 }
 
-async function resolvePrivateImageUrl(value, bucket) {
-  if (!value?.trim()) return null;
+async function signImageUrl(bucket, path) {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, IMAGE_URL_EXPIRY_SECONDS);
+  throwIfError(error);
+  return data?.signedUrl ?? null;
+}
+
+// Use somente para imagens que já podem ser consultadas pelo público.
+export async function resolvePrivateImageUrl(value, bucket) {
+  if (typeof value !== "string" || !value.trim()) return null;
   let path = value.trim();
   if (/^https?:\/\//i.test(path)) {
     const url = new URL(path);
@@ -129,12 +160,32 @@ async function resolvePrivateImageUrl(value, bucket) {
   }
 
   path = normalizeStoragePath(path, bucket);
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .createSignedUrl(path, 60 * 60);
+  const key = JSON.stringify([bucket, path]);
+  const now = Date.now();
+  const cached = signedImageUrls.get(key);
+  signedImageUrls.delete(key);
+  if (cached && cached.validUntil > now) {
+    signedImageUrls.set(key, cached);
+    return cached.request;
+  }
 
-  throwIfError(error);
-  return data?.signedUrl ?? null;
+  // Compartilha a mesma assinatura em consultas simultâneas. O prazo conta
+  // desde a solicitação, com margem para o vencimento real da URL.
+  const request = signImageUrl(bucket, path);
+  signedImageUrls.set(key, { request, validUntil: now + IMAGE_URL_CACHE_MS });
+  if (signedImageUrls.size > IMAGE_URL_CACHE_LIMIT) {
+    signedImageUrls.delete(signedImageUrls.keys().next().value);
+  }
+
+  try {
+    const url = await request;
+    if (url) return url;
+    if (signedImageUrls.get(key)?.request === request) signedImageUrls.delete(key);
+    return null;
+  } catch (error) {
+    if (signedImageUrls.get(key)?.request === request) signedImageUrls.delete(key);
+    throw error;
+  }
 }
 
 async function withImageUrls(items, bucket) {
@@ -158,7 +209,8 @@ export async function listMediaByCategory(categoryId) {
     .select("id, category_id, imagem_url, data, created_at")
     .eq("category_id", categoryId)
     .order("data", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
 
   throwIfError(error);
   return withImageUrls(data ?? [], "media-images");

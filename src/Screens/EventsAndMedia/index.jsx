@@ -17,19 +17,20 @@ import styles from "./style";
 import SearchHeader from "../../components/header/searchHeader";
 import NavBar from "../../components/navBar";
 import TitleComponent from "../../components/titles";
-import useScreenData from "../../hooks/useScreenData";
+import useScreenData, { PUBLIC_CONTENT_REFRESH_MS } from "../../hooks/useScreenData";
 import showMessage from "../../utils/showMessage";
+import { HOME_CAROUSEL_CATEGORY } from "../../services/supabaseCarousel";
 import {
   listEventsWithImages,
+  listGalleryCategoriesWithImages,
   listMediaByCategory,
-  listMediaCategories,
 } from "../../services/supabaseData";
 
-const IMAGE_REFRESH_MS = 50 * 60 * 1000;
+const loadGalleryCategories = () => listGalleryCategoriesWithImages(HOME_CAROUSEL_CATEGORY.id);
 const normalizeSearch = (value) => String(value ?? "").normalize("NFD")
   .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").trim();
 
-// Preserva as capas decorativas do design; não são fotos da galeria.
+// A arte padrão fica disponível para categorias sem uma foto publicada.
 const categoryCover = (name) => {
   const normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   if (normalized.includes("jov")) {
@@ -41,24 +42,29 @@ const categoryCover = (name) => {
   return require("../../../assets/img/Rectangle 1.png");
 };
 
-const DatabaseImage = ({ imageUrl, style }) => {
+const DatabaseImage = ({ imageUrl, style, fallback }) => {
   const [failedUrl, setFailedUrl] = useState(null);
   return imageUrl && imageUrl !== failedUrl ? (
     <Image source={{ uri: imageUrl }} style={style} onError={() => setFailedUrl(imageUrl)} />
-  ) : (
-    <View style={style}><Text>Imagem indisponível</Text></View>
-  );
+  ) : fallback ? <Image source={fallback} style={style} />
+    : <View style={style}><Text>Imagem indisponível</Text></View>;
 };
 
 const EventsAndMedia = () => {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(null);
   const savingPhoto = useRef(false);
-  const events = useScreenData(listEventsWithImages, { refreshMs: IMAGE_REFRESH_MS });
-  const categories = useScreenData(listMediaCategories);
+  const events = useScreenData(listEventsWithImages, {
+    refreshMs: PUBLIC_CONTENT_REFRESH_MS, backgroundRefresh: true,
+  });
+  const categories = useScreenData(loadGalleryCategories, {
+    refreshMs: PUBLIC_CONTENT_REFRESH_MS, backgroundRefresh: true,
+  });
   const categoryId = selectedCategory?.id;
   const loadPhotos = useCallback(() => listMediaByCategory(categoryId), [categoryId]);
-  const photos = useScreenData(loadPhotos, { refreshMs: IMAGE_REFRESH_MS });
+  const photos = useScreenData(loadPhotos, {
+    refreshMs: categoryId ? PUBLIC_CONTENT_REFRESH_MS : 0, backgroundRefresh: true,
+  });
   const query = normalizeSearch(search);
   const filteredEvents = events.data.filter((event) =>
     normalizeSearch(`${event.titulo} ${event.local || ""}`).includes(query),
@@ -191,7 +197,11 @@ const EventsAndMedia = () => {
               accessibilityRole="button"
               accessibilityLabel={`Abrir fotos: ${item.categoria}`}
             >
-              <Image source={categoryCover(item.categoria)} style={styles.categoryImage} />
+              <DatabaseImage
+                imageUrl={item.imageUrl}
+                fallback={categoryCover(item.categoria)}
+                style={styles.categoryImage}
+              />
               <Text style={styles.categoryTitle} numberOfLines={2}>
                 {item.categoria.toUpperCase()}
               </Text>

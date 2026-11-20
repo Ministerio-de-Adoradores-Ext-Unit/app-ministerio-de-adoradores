@@ -36,9 +36,10 @@ function setup(options = {}) {
   const calls = [];
   const previous = {
     id: EVENT, titulo: 'Evento anterior', data: '2026-11-10', horario: '18:00:00',
-    local: 'Local anterior', imagem_url: 'capa-antiga.jpg', created_at: '2026-11-10T12:00:00Z',
+    local: 'Local anterior', imagem_url: options.previousImage ?? 'capa-antiga.jpg', created_at: '2026-11-10T12:00:00Z',
   };
   const rows = new Map(options.missingEvent ? [] : [[EVENT, previous]]);
+  if (options.sharedImage) rows.set(OTHER, { ...previous, id: OTHER, imagem_url: options.aliasImage ?? previous.imagem_url });
   let reads = 0, uploadedPath;
   const storage = {
     async upload(objectPath, bytes, settings) {
@@ -59,11 +60,13 @@ function setup(options = {}) {
       calls.push(['table', table]);
       assert.equal(table, 'events');
       let operation = 'read', values, id;
+      const filters = [];
       const query = {
         select(columns) { calls.push(['select', columns]); return query; },
         insert(payload) { operation = 'insert'; values = payload; calls.push(['insert', payload]); return query; },
         update(payload) { operation = 'update'; values = payload; calls.push(['update', payload]); return query; },
-        eq(column, value) { assert.equal(column, 'id'); id = value; calls.push(['eq', column, value]); return query; },
+        eq(column, value) { if (column === 'id') id = value; filters.push([column, value]); calls.push(['eq', column, value]); return query; },
+        is(column, value) { filters.push([column, value]); calls.push(['is', column, value]); return query; },
         async maybeSingle() {
           reads += 1;
           calls.push(['read', id]);
@@ -76,6 +79,10 @@ function setup(options = {}) {
           assert.notEqual(operation, 'read');
           if (options.rejection) return options.rejection;
           if (options.throwBeforeCommit) throw new Error(INTERNAL);
+          if (operation === 'update' && options.concurrentImage) rows.set(id, { ...rows.get(id), imagem_url: options.concurrentImage });
+          if (operation === 'update' && filters.some(([column, value]) => rows.get(id)?.[column] !== value)) {
+            return { data: null, error: { code: 'PGRST116' }, status: 406 };
+          }
           const result = operation === 'insert'
             ? { ...values, created_at: '2026-11-14T12:00:00Z' }
             : { ...rows.get(id), ...values };
@@ -84,6 +91,14 @@ function setup(options = {}) {
           if (options.throwAfterCommit) throw new Error(INTERNAL);
           if (options.malformedAfterCommit) return { data: null, error: null };
           return { data: result, error: null, status: 200 };
+        },
+        then(resolve, reject) {
+          assert.equal(operation, 'read');
+          calls.push(['references']);
+          const data = [...rows.values()];
+          return Promise.resolve(options.referencesError
+            ? { data: null, error: { message: INTERNAL } }
+            : { data, count: options.incompleteReferences ? data.length + 1 : data.length, error: null }).then(resolve, reject);
         },
       };
       return query;
@@ -284,4 +299,75 @@ test('UPDATE negado ou sem linhas retornadas não é anunciado como salvo', asyn
   const { api, calls } = setup({ rejection: { data: null, error: { code: 'PGRST116' }, status: 406 } });
   await assert.rejects(api.saveEvent({ ...valid(), id: EVENT }), /Não foi possível salvar o evento/);
   assert.equal(calls.some(([operation]) => operation === 'insert' || operation === 'remove'), false);
+});
+
+test('retirada de capa exige edição explícita e não aceita imagem nova ao mesmo tempo', async () => {
+  for (const input of [
+    { ...valid(), removeImage: true },
+    { ...valid(), id: EVENT, removeImage: 'sim' },
+    { ...valid(), id: EVENT, removeImage: true, imageAsset: asset },
+  ]) {
+    const { api, calls } = setup();
+    await assert.rejects(api.saveEvent(input), /trocar ou remover/);
+    assert.equal(calls.length, 0);
+  }
+});
+
+test('remover capa atualiza somente o evento, preserva ID e limpa arquivo próprio apenas após confirmação', async () => {
+  const oldPath = `${USER}/${EVENT}/anterior.png`;
+  const { api, calls, rows } = setup({ previousImage: oldPath });
+  const saved = await api.saveEvent({ ...valid(), id: EVENT, removeImage: true });
+  assert.equal(saved.id, EVENT);
+  assert.equal(saved.imagem_url, null);
+  assert.equal(rows.has(EVENT), true);
+  assert.equal(calls.some(([operation]) => ['insert', 'delete', 'upload'].includes(operation)), false);
+  assert.equal(calls.filter(([operation]) => operation === 'table').every(([, table]) => table === 'events'), true);
+  assert.ok(calls.some(([operation, column, value]) => operation === 'eq' && column === 'imagem_url' && value === oldPath));
+  const removal = calls.find(([operation]) => operation === 'remove');
+  assert.deepEqual(Array.from(removal[1]), [oldPath]);
+  assert.ok(calls.findIndex(([operation]) => operation === 'write') < calls.findIndex(([operation]) => operation === 'references'));
+  assert.ok(calls.findIndex(([operation]) => operation === 'references') < calls.findIndex(([operation]) => operation === 'remove'));
+});
+
+test('retirada e troca preservam arquivo compartilhado, alheio ou com referências incompletas', async () => {
+  for (const options of [
+    { previousImage: `${USER}/${EVENT}/anterior.png`, sharedImage: true },
+    { previousImage: `${USER}/${EVENT}/anterior.png`, sharedImage: true, aliasImage: `/event-images/${USER}/${EVENT}/anterior.png` },
+    { previousImage: `${USER}/${EVENT}/anterior.png`, incompleteReferences: true },
+    { previousImage: `${USER}/${EVENT}/anterior.png`, referencesError: true },
+    { previousImage: `${OTHER}/${EVENT}/anterior.png` },
+    { previousImage: 'https://externo.example/foto.png' },
+  ]) {
+    for (const change of [{ removeImage: true }, { imageAsset: asset }]) {
+      const { api, calls } = setup(options);
+      await api.saveEvent({ ...valid(), id: EVENT, ...change });
+      assert.equal(calls.some(([operation]) => operation === 'remove'), false);
+    }
+  }
+});
+
+test('capa trocada em outro aparelho não é retirada por uma edição em trânsito', async () => {
+  const latest = `${OTHER}/${EVENT}/mais-recente.png`;
+  const { api, calls, rows } = setup({ concurrentImage: latest });
+  await assert.rejects(api.saveEvent({ ...valid(), id: EVENT, removeImage: true }), /Não foi possível salvar/);
+  assert.equal(rows.get(EVENT).imagem_url, latest);
+  assert.equal(calls.some(([operation]) => operation === 'remove'), false);
+});
+
+test('resposta perdida da retirada é conciliada; erro de consulta preserva o arquivo antigo', async () => {
+  const oldPath = `${USER}/${EVENT}/anterior.png`;
+  const success = setup({ previousImage: oldPath, throwAfterCommit: true });
+  assert.equal((await success.api.saveEvent({ ...valid(), id: EVENT, removeImage: true })).imagem_url, null);
+  assert.deepEqual(Array.from(success.calls.find(([operation]) => operation === 'remove')[1]), [oldPath]);
+  const uncertain = setup({ previousImage: oldPath, throwAfterCommit: true, readFailureAt: [2] });
+  await assert.rejects(uncertain.api.saveEvent({ ...valid(), id: EVENT, removeImage: true }), /Reabra a lista e confira/);
+  assert.equal(uncertain.calls.some(([operation]) => operation === 'remove'), false);
+});
+
+test('mudança de capa ocorrida antes de salvar não é sobrescrita nem removida', async () => {
+  for (const change of [{ removeImage: true }, { imageAsset: asset }]) {
+    const { api, calls } = setup();
+    await assert.rejects(api.saveEvent({ ...valid(), id: EVENT, expectedImagePath: 'capa-desatualizada.png', ...change }), /capa foi alterada/);
+    assert.equal(calls.some(([type]) => type === 'update' || type === 'upload' || type === 'remove'), false);
+  }
 });

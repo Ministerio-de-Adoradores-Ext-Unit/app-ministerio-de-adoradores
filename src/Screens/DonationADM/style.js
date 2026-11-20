@@ -90,6 +90,7 @@ const styles = StyleSheet.create({
   cardActions: {
     flexDirection: "row",
     justifyContent: "flex-end",
+    gap: 8,
     paddingHorizontal: 12,
     paddingBottom: 12,
   },

@@ -49,6 +49,8 @@ export default function ManageEventsADM() {
   const [selectedDateTime, setSelectedDateTime] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedImageAsset, setSelectedImageAsset] = useState(null);
+  const [removeImage, setRemoveImage] = useState(false);
+  const [savedImagePath, setSavedImagePath] = useState(null);
   const [working, setWorking] = useState(false);
   const sending = useRef(false);
   const mounted = useRef(true);
@@ -75,6 +77,8 @@ export default function ManageEventsADM() {
     setSelectedDateTime(null);
     setSelectedImage(null);
     setSelectedImageAsset(null);
+    setRemoveImage(false);
+    setSavedImagePath(null);
     setIsModalVisible(true);
   };
 
@@ -94,6 +98,8 @@ export default function ManageEventsADM() {
     setPickerMode("date");
     setSelectedImage(event.image || null);
     setSelectedImageAsset(null);
+    setRemoveImage(false);
+    setSavedImagePath(event.imagem_url || null);
     setIsModalVisible(true);
   };
 
@@ -106,6 +112,8 @@ export default function ManageEventsADM() {
     setPickerMode("date");
     setSelectedImage(null);
     setSelectedImageAsset(null);
+    setRemoveImage(false);
+    setSavedImagePath(null);
   };
 
   const handleCloseModal = () => {
@@ -129,6 +137,7 @@ export default function ManageEventsADM() {
       if (!result.canceled && mounted.current && result.assets?.[0]) {
         setSelectedImage(result.assets[0].uri);
         setSelectedImageAsset(result.assets[0]);
+        setRemoveImage(false);
       }
     } catch {
       if (mounted.current) showMessage("Não foi possível selecionar", "Tente abrir suas fotos novamente.");
@@ -183,6 +192,8 @@ export default function ManageEventsADM() {
         dateTime: selectedDateTime,
         local: form.local,
         imageAsset: selectedImageAsset || undefined,
+        removeImage,
+        expectedImagePath: editingEventId !== null ? savedImagePath : undefined,
       });
       if (mounted.current) {
         resetModal();
@@ -361,11 +372,28 @@ export default function ManageEventsADM() {
             />
 
             {selectedImage ? (
-              <Image
-                source={{ uri: selectedImage }}
-                style={style.previewImage}
-              />
+                <Image
+                  source={{ uri: selectedImage }}
+                  style={style.previewImage}
+                />
             ) : null}
+                {editingEventId !== null && !removeImage && (selectedImage || savedImagePath) && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelectedImage(null);
+                      setSelectedImageAsset(null);
+                      setRemoveImage(true);
+                    }}
+                    disabled={working}
+                    accessibilityRole="button"
+                    accessibilityLabel="Remover capa do evento"
+                    style={style.removeImageButton}
+                  >
+                    <Icon name="trash-2" size={16} color="#0B233E" />
+                    <Text style={style.removeImageText}>Remover capa</Text>
+                  </TouchableOpacity>
+                )}
+            {removeImage && <Text style={style.removeImageText}>A capa será removida ao salvar. O evento e as inscrições serão mantidos.</Text>}
 
             <View style={style.modalActions}>
               <TouchableOpacity

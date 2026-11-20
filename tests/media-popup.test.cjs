@@ -21,7 +21,7 @@ function deferred() {
 }
 
 // Executa os handlers do componente real; simula apenas hooks, SO e serviços externos.
-function popupHarness() {
+function popupHarness(options = {}) {
   let hookIndex = 0;
   let effects = [];
   let tree;
@@ -34,8 +34,11 @@ function popupHarness() {
     visible: true,
     category: { id: 'categoria-a', categoria: 'Categoria A' },
     onClose: () => calls.push(['close']),
+    ...options.props,
   };
   let upload = async () => {};
+  let replacement = async () => {};
+  let deletion = async () => {};
   let confirmation = () => Promise.resolve(true);
   let pickedAssets = [];
 
@@ -84,14 +87,21 @@ function popupHarness() {
     },
     'react-native-vector-icons/Feather': 'Icon',
     './style': {},
-    '../../../hooks/useScreenData': () => ({ data: [], loading: false, errorMessage: '' }),
+    '../../../hooks/useScreenData': () => ({ data: options.rows || [], loading: false, errorMessage: '' }),
     '../../../services/supabaseData': { listMediaByCategory: async () => [] },
     '../../../services/supabaseMedia': {
       uploadMedia(input) {
         calls.push(['upload', input]);
         return upload(input);
       },
-      deleteMedia: async () => {},
+      deleteMedia(input) {
+        calls.push(['delete', input]);
+        return deletion(input);
+      },
+      replaceMedia(input) {
+        calls.push(['replace', input]);
+        return replacement(input);
+      },
     },
     '../../../utils/showMessage': (...args) => messages.push(args),
     '../../../utils/confirmAction': (...args) => confirmation(...args),
@@ -134,6 +144,16 @@ function popupHarness() {
     calls,
     messages,
     items: () => grid().props.data,
+    selectSaved(id) {
+      const item = grid().props.data.find((photo) => photo.key === `saved-${id}`);
+      grid().props.renderItem({ item }).props.onPress();
+      render();
+    },
+    async replaceWith(asset) {
+      pickedAssets = [asset];
+      await button('Trocar imagem selecionada').props.onPress();
+      render();
+    },
     updatesAfterUnmount: () => updatesAfterUnmount,
     async add(assets) {
       pickedAssets = assets;
@@ -142,6 +162,8 @@ function popupHarness() {
       render();
     },
     setUpload(callback) { upload = callback; },
+    setReplacement(callback) { replacement = callback; },
+    setDeletion(callback) { deletion = callback; },
     setConfirmation(callback) { confirmation = callback; },
     setCategory(category) {
       props = { ...props, category, visible: !!category };
@@ -223,4 +245,91 @@ test('confirmação de descarte da categoria anterior não fecha a categoria atu
   await closing;
 
   assert.equal(h.calls.filter(([type]) => type === 'close').length, 0);
+});
+
+const savedPhoto = { id: 'foto-salva', imagem_url: 'categoria/foto-antiga.png', imageUrl: 'https://imagem.example/anterior.png' };
+
+test('troca exibe prévia e publica somente ao salvar, mantendo ID, categoria e caminho esperado', async (t) => {
+  const h = popupHarness({ rows: [savedPhoto] });
+  t.after(() => h.unmount());
+  assert.equal(h.button('Trocar imagem selecionada').props.disabled, true);
+  h.selectSaved(savedPhoto.id);
+  await h.replaceWith(images[0]);
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.items().find(item => item.kind === 'saved').uri, images[0].uri);
+  assert.equal(h.button('Apagar imagens selecionadas').props.disabled, true);
+  await h.button('Salvar mídias').props.onPress();
+  h.render();
+  const calls = h.calls.filter(([type]) => type === 'replace');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1].mediaId, savedPhoto.id);
+  assert.equal(calls[0][1].categoryId, 'categoria-a');
+  assert.equal(calls[0][1].expectedPath, savedPhoto.imagem_url);
+  assert.equal(calls[0][1].asset, images[0]);
+  assert.equal(h.button('Cancelar troca da imagem'), null);
+});
+
+test('cancelar troca restaura a prévia antiga sem escrever e falha preserva a nova seleção', async (t) => {
+  const h = popupHarness({ rows: [savedPhoto] });
+  t.after(() => h.unmount());
+  h.selectSaved(savedPhoto.id);
+  await h.replaceWith(images[0]);
+  h.button('Cancelar troca da imagem').props.onPress();
+  h.render();
+  assert.equal(h.items().find(item => item.kind === 'saved').uri, savedPhoto.imageUrl);
+  assert.equal(h.calls.length, 0);
+  await h.replaceWith(images[1]);
+  h.setReplacement(async () => { throw new Error('Falha controlada na troca.'); });
+  await h.button('Salvar mídias').props.onPress();
+  h.render();
+  assert.equal(h.items().find(item => item.kind === 'saved').uri, images[1].uri);
+  assert.ok(h.button('Cancelar troca da imagem'));
+  assert.match(h.messages[0][0], /Não foi possível salvar/);
+});
+
+test('troca bloqueia envio duplicado e não atualiza tela desmontada', async () => {
+  const h = popupHarness({ rows: [savedPhoto] });
+  h.selectSaved(savedPhoto.id);
+  await h.replaceWith(images[0]);
+  const pending = deferred();
+  h.setReplacement(() => pending.promise);
+  const saving = h.button('Salvar mídias').props.onPress();
+  await h.button('Salvar mídias').props.onPress();
+  assert.equal(h.calls.filter(([type]) => type === 'replace').length, 1);
+  h.unmount();
+  pending.resolve();
+  await saving;
+  assert.equal(h.messages.length, 0);
+  assert.equal(h.updatesAfterUnmount(), 0);
+});
+
+test('carrossel prepara a categoria somente ao salvar; falha preserva a seleção', async (t) => {
+  let preparations = 0;
+  const h = popupHarness({ props: { embedded: true, beforeUpload: async () => {
+    preparations += 1;
+    throw new Error('Falha controlada ao preparar.');
+  } } });
+  t.after(() => h.unmount());
+  await h.add(images);
+  assert.equal(preparations, 0);
+  await h.button('Salvar mídias').props.onPress();
+  h.render();
+  assert.equal(preparations, 1);
+  assert.equal(h.calls.filter(([type]) => type === 'upload').length, 0);
+  assert.equal(h.items().filter(item => item.kind === 'pending').length, 2);
+  assert.match(h.messages[0][0], /preparar/);
+});
+
+test('exclusão confirmada limpa seleção e informa quando um arquivo precisa ser preservado', async (t) => {
+  const h = popupHarness({ rows: [savedPhoto] });
+  t.after(() => h.unmount());
+  h.selectSaved(savedPhoto.id);
+  h.setDeletion(async () => ({ deleted: true, filePreserved: true }));
+  await h.button('Apagar imagens selecionadas').props.onPress();
+  h.render();
+  assert.equal(h.calls.filter(([type]) => type === 'delete').length, 1);
+  assert.equal(h.calls.find(([type]) => type === 'delete')[1].expectedPath, savedPhoto.imagem_url);
+  assert.equal(h.button('Apagar imagens selecionadas').props.disabled, true);
+  assert.equal(h.messages[0][0], 'Imagens retiradas da categoria');
+  assert.match(h.messages[0][1], /mantidos no armazenamento/);
 });

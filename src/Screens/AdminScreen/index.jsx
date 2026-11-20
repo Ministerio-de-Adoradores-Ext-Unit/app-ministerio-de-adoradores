@@ -17,6 +17,7 @@ export default function AdminScreen() {
 
   const buttons = [
     { label: "MÍDIA", route: "MidiaScreen" },
+    { label: "CARROSSEL", route: "CarouselADM" },
     { label: "PARTICIPE", route: "ParticipacoesADM" },
     { label: "PEDIDOS DE ORAÇÃO", route: "PrayerRequestsADM" },
     { label: "EVENTOS", route: "ManageEventsADM" },
