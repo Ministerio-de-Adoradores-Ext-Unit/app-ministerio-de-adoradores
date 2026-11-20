@@ -1,0 +1,113 @@
+﻿name: Build and publish Android APK 1.0.1
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/publish-android-101.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run tests
+        run: npm test
+
+      - name: Regenerate Android for Expo SDK 58 and keep original signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp android/app/debug.keystore "$RUNNER_TEMP/original-debug.keystore"
+          CI=1 npx expo prebuild --platform android --clean
+          cp "$RUNNER_TEMP/original-debug.keystore" android/app/debug.keystore
+          grep -F "applicationId 'com.anonymous.appextensaouniversitaria'" android/app/build.gradle
+          grep -E 'versionCode 2|versionName "1.0.1"' android/app/build.gradle
+
+      - name: Compile release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --no-daemon --max-workers=2
+
+      - name: Verify version, signature, zip alignment and integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          NEW_APK="android/app/build/outputs/apk/release/app-release.apk"
+          OLD_APK="$RUNNER_TEMP/old.apk"
+          test -s "$NEW_APK"
+          curl --fail --location --silent --show-error --retry 3 "https://github.com/Ministerio-de-Adoradores-Ext-Unit/app-ministerio-de-adoradores/releases/download/v1.0.0-teste.1/Ministerio-de-Adoradores-1.0.0.apk" -o "$OLD_APK"
+          BT="$(find "$ANDROID_HOME/build-tools" -maxdepth 1 -mindepth 1 -type d | sort -V | tail -n 1)"
+          "$BT/apksigner" verify --print-certs "$NEW_APK"
+          "$BT/apksigner" verify --print-certs "$OLD_APK"
+          "$BT/zipalign" -c -P 16 -v 4 "$NEW_APK"
+          export NEW_APK OLD_APK BT
+          python3 - <<'PY'
+          import os, re, subprocess, sys
+          def inspect(path):
+              txt = subprocess.check_output([os.environ['BT']+'/aapt','dump','badging',path], text=True)
+              m = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'",txt,re.M)
+              assert m, f'Cannot read package metadata: {path}'
+              certs = subprocess.check_output([os.environ['BT']+'/apksigner','verify','--print-certs',path],text=True)
+              match = re.search(r'certificate SHA-256 digest:\s*([0-9a-fA-F]+)',certs)
+              assert match, f'Cannot read signing certificate: {path}'
+              return m.groups(), match.group(1).lower()
+          old, oldcert = inspect(os.environ['OLD_APK'])
+          new, newcert = inspect(os.environ['NEW_APK'])
+          print('Old:',old,'New:',new,'Same signer:',oldcert==newcert)
+          assert old[0] == new[0] == 'com.anonymous.appextensaouniversitaria', 'Package does not match'
+          assert int(new[1]) == 2 and int(old[1]) == 1, 'versionCode mismatch'
+          assert new[2] == '1.0.1', 'versionName mismatch'
+          assert oldcert == newcert == 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c', 'Signing mismatch'
+          print('Upgrade package identity and signature verified')
+          PY
+          cp "$NEW_APK" Ministerio-de-Adoradores-1.0.1.apk
+          sha256sum Ministerio-de-Adoradores-1.0.1.apk > SHA256SUMS.txt
+
+      - name: Publish test release on GitHub
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/notes.md" <<'NOTES'
+          ## Ministério de Adoradores — Android 1.0.1 (teste interno)
+          
+          - Campanhas de Doações integradas ao Supabase e banners públicos.
+          - Sincronização de fotos, mídias e conteúdos administrativos.
+          - APK independente do Expo Go, assinado e versionado para atualização sobre o 1.0.0.
+          - 196 testes automatizados aprovados; pacote, assinatura e integridade verificados durante a compilação.
+          
+          Instale ou atualize diretamente no Android. É necessário internet para consultar os dados.
+          A instalação física em aparelhos da equipe ainda deverá ser validada.
+          NOTES
+          gh release create v1.0.1-teste.1 \
+            Ministerio-de-Adoradores-1.0.1.apk SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title 'Ministério de Adoradores 1.0.1 - Android (teste)' \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --prerelease
+          gh release view v1.0.1-teste.1 --repo "$GITHUB_REPOSITORY" --json url,assets
+
